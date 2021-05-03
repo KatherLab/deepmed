@@ -20,9 +20,10 @@ def deploy(model: torch.nn.Module, target_label: str, test_df: pd.DataFrame, res
            batch_size: int = 64,
            feature_extract: bool = False,
            **kwargs) -> EvalDF:
+
     num_classes = 2 #TODO does this matter here?
     _, input_size = initialize_model(model_name, num_classes, feature_extract=feature_extract,
-                                           use_pretrained=True)
+                                     use_pretrained=True)
     le = preprocessing.LabelEncoder()
     labels_list = le.fit_transform(test_df[target_label])
     target_label_dict = dict(zip(le.classes_, range(len(le.classes_))))
@@ -43,7 +44,7 @@ def deploy(model: torch.nn.Module, target_label: str, test_df: pd.DataFrame, res
 
     epoch_loss, epoch_acc, pred_list = validate_model(model, test_generator, criterion)
 
-    scores = {key: [item[index] for item in pred_list]
+    scores = {f'{target_label}_{key}': [item[index] for item in pred_list]
               for index, key in enumerate(list(target_label_dict.keys()))}
 
     scores = pd.DataFrame.from_dict(scores)

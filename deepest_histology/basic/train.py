@@ -109,7 +109,7 @@ def train_model_classic(model, trainLoaders, valLoaders=[], criterion=None, opti
 
     for epoch in range(num_epochs):
         phase = 'train'
-        logger.info('epoch {}/{}'.format(epoch, num_epochs - 1))
+        logger.info('Epoch {}/{}'.format(epoch, num_epochs - 1))
 
         model.train()
         running_loss = 0.0
@@ -187,7 +187,7 @@ def train_model_classic(model, trainLoaders, valLoaders=[], criterion=None, opti
                 break
 
     time_elapsed = time.time() - since
-    logger.info(f'training complete in {time_elapsed//60:.0f}m {time_elapsed%60:.0f}s')
+    logger.info(f'Training complete in {time_elapsed//60:.0f}m {time_elapsed%60:.0f}s')
 
     return model, train_loss_history, train_acc_history, val_acc_history, val_loss_history
 

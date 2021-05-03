@@ -2,11 +2,11 @@
 from deepest_histology.experiment_imports import *
 
 do_experiment(
-    project_dir='/media/markovt/KATHER_P03/markos_test_project',
-    get_runs=crossval.create_experiments,
-    #train=basic.train,
-    #deploy=basic.deploy,
-    #evaluate=crossval.evaluate,
+    project_dir='markos_test_project',
+    get_runs=crossval.create_runs,
+    train=basic.train,
+    deploy=basic.deploy,
+    evaluate=crossval.evaluate,
     targets=['isMSIH'],
     fold_evaluators=[auroc, SubGrouped(Grouped(auroc), by='GENDER')],
     target_evaluators=[Grouped(roc)],

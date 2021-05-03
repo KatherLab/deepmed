@@ -10,23 +10,24 @@ import torch
 
 logger = logging.getLogger(__name__)
 
-"""An object which the Deployer can apply to a test set."""
 Model = TypeVar('Model')
+"""An object which the Deployer can apply to a test set."""
 
+TrainDF = Type[pd.DataFrame]
 """A pandas dataframe having at least the following columns:
 
 - block_path: Path:  A path to each tile.   #TODO unify block/tile nomenclature
 - is_valid: bool:  True if the tile should be used for validation (e.g. for early stopping).
 - At least one target column.
 """
-TrainDF = Type[pd.DataFrame]
 
+TestDF = Type[pd.DataFrame]
 """A pandas dataframe having at least the following columns:
 
 - block_path: Path:  A path to each tile.
 """
-TestDF = Type[pd.DataFrame]
 
+TestResultDF = Type[pd.DataFrame]
 """A pandas dataframe returned by a `Deployer`. It hase at least the following columns:
 
 - A column `{target_label}_pred`, where `target_label` is the name of the inferred target containing
@@ -35,7 +36,6 @@ TestDF = Type[pd.DataFrame]
   that the test item is of that class
 - All columns present in the TestDF given to the `Deployer`.
 """
-TestResultDF = Type[pd.DataFrame]
 
 #TODO doc
 EvalDF = Type[pd.DataFrame]#['PATIENT', target_label, f'{target_label}_pred',
@@ -49,9 +49,10 @@ class Run:
     test_df: Optional[TestDF]
 
 
-"""A function which creates a series of runs."""
 RunGetter = Callable[..., Sequence[Run]]
+"""A function which creates a series of runs."""
 
+Trainer = Callable[..., Model]
 """A function which trains a model.
 
 Required kwargs:
@@ -62,8 +63,8 @@ Required kwargs:
 Returns:
     The trained model.
 """
-Trainer = Callable[..., Model]
 
+Deployer = Callable[..., EvalDF]
 """A function which deployes a model.
 
 Required kwargs:
@@ -75,38 +76,39 @@ Required kwargs:
 Returns:
     `test_df`, but with additional columns for the predictions. #TODO reword
 """
-Deployer = Callable[..., EvalDF]
+
 # target_label, preds_df, result_dir
 Evaluator = Callable[[str, pd.DataFrame, Path], pd.DataFrame]
+
 
 def do_experiment(*,
         project_dir: Union[str, Path],
         get_runs: RunGetter,
         train: Optional[Trainer] = None,
         deploy: Optional[Deployer] = None,
-        evaluate: Optional[Any] = None, #TODO
+        evaluate: Optional[Any] = None,  #TODO
         **kwargs) -> None:
 
     project_dir = Path(project_dir)
-    logger.info(f'starting project {project_dir}')
+    logger.info(f'Starting project {project_dir}')
     project_dir.mkdir(exist_ok=True)
 
-    logger.info('getting runs')
+    logger.info('Getting runs')
     runs = get_runs(project_dir=project_dir, **kwargs)
     create_experiment_dirs_(runs)
 
-    for exp in runs:
-        logger.info(f'starting experiment {exp.directory}')
+    for run in runs:
+        logger.info(f'Starting experiment {run.directory}')
         
-        model = (train_(train=train, exp=exp, **kwargs)
-                 if train and exp.train_df is not None
+        model = (train_(train=train, exp=run, **kwargs)
+                 if train and run.train_df is not None
                  else None)
 
-        preds_df = (deploy_(deploy=deploy, model=model, exp=exp, **kwargs)
-                    if deploy and exp.test_df is not None
+        preds_df = (deploy_(deploy=deploy, model=model, run=run, **kwargs)
+                    if deploy and run.test_df is not None
                     else None)
 
-    logger.info(f'evaluating')
+    logger.info('Evaluating')
     if evaluate:
         preds_df = evaluate(project_dir, **kwargs)
 
@@ -134,7 +136,7 @@ def train_(train: Trainer, exp: Run, **kwargs) -> Model:
         logger.warning(f'{model_path} already exists, using old model!')
         return torch.load(model_path)
 
-    logger.info('starting training')
+    logger.info('Starting training')
     model = train(target_label=exp.target,
                   train_df=exp.train_df,
                   result_dir=exp.directory,
@@ -144,21 +146,21 @@ def train_(train: Trainer, exp: Run, **kwargs) -> Model:
     return model
 
 
-def deploy_(deploy: Deployer, model: Optional[Model], exp: Run, **kwargs):
-    preds_path = exp.directory/'predictions.csv'
+def deploy_(deploy: Deployer, model: Optional[Model], run: Run, **kwargs):
+    preds_path = run.directory/'predictions.csv'
     if preds_path.exists():
         logger.warning(f'{preds_path} already exists, using old predictions!')
         return pd.read_csv(preds_path)
 
     if not model:
-        logger.info('loading model')
-        model = torch.load(exp.directory/'model.pt')
+        logger.info('Loading model')
+        model = torch.load(run.directory/'model.pt')
 
-    logger.info('getting predictions')
+    logger.info('Getting predictions')
     preds_df = deploy(model=model,
-                      target_label=exp.target,
-                      test_df=exp.test_df,
-                      result_dir=exp.directory,
+                      target_label=run.target,
+                      test_df=run.test_df,
+                      result_dir=run.directory,
                       **kwargs)
     preds_df.to_csv(preds_path, index=False)
 

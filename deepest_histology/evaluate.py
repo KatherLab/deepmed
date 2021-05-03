@@ -19,6 +19,7 @@ def Grouped(evaluate: Evaluator, by: str = 'PATIENT'):
 
     return grouped
 
+
 def SubGrouped(evaluate: Evaluator, by: str):
     def sub_grouped(target_label, preds_df, result_dir, **kwargs):
         return {

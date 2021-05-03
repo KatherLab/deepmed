@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 #TODO log defaults
-def create_experiments(*,
+def create_runs(*,
         project_dir: Path,
         targets: Iterable[str],
         cohorts: Iterable[Cohort],
@@ -25,7 +25,7 @@ def create_experiments(*,
         seed: int = 0,
         **kwargs) -> Sequence[Run]:
 
-    experiments = []
+    runs = []
 
     for target in targets:
         logger.info(f'For target {target}:')
@@ -40,37 +40,36 @@ def create_experiments(*,
             logger.info(f'For fold {fold}:')
             train_df = balance_classes(tiles_df=tiles_df[tiles_df.fold != fold],
                                        target=target)
-            test_df = balance_classes(tiles_df=tiles_df[tiles_df.fold == fold],
-                                      target=target)
+            test_df = tiles_df=tiles_df[tiles_df.fold == fold]
             assert not test_df.empty, 'Empty fold in cross validation!'
 
-            experiments.append(Run(directory=project_dir/target/f'fold_{fold}',
-                                   target=target,
-                                   train_df=train_df,
-                                   test_df=test_df))
+            runs.append(Run(directory=project_dir/target/f'fold_{fold}',
+                            target=target,
+                            train_df=train_df,
+                            test_df=test_df))
 
-    return experiments
+    return runs
 
 
 #TODO find better name
-def load_experiments(*,
+def load_runs(*,
         targets: Iterable[str],
         project_dir: Path,
         **kwargs) -> Sequence[Run]:
 
-    experiments = []
+    runs = []
     for target in targets:
         for target_dir in (project_dir/target).iterdir():
             if target_dir.is_dir() and target_dir.name.startswith('fold_'):
                 train_path = target_dir/'training_set.csv'
                 test_path = target_dir/'testing_set.csv'
-                experiments.append(
+                runs.append(
                     Run(directory=target_dir,
                         target=target,
                         train_df=pd.read_csv(train_path) if train_path.exists else None,
                         test_df=pd.read_csv(test_path) if test_path.exists else None))
 
-    return experiments
+    return runs
 
 
 
