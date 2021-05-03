@@ -18,34 +18,35 @@ logger = logging.getLogger(__name__)
 #TODO log defaults
 def create_runs(*,
         project_dir: Path,
-        targets: Iterable[str],
+        target_labels: Iterable[str],
         cohorts: Iterable[Cohort],
         max_tile_num: int = 500,
         folds: int = 3,
         seed: int = 0,
+        valid_frac: float = .1,
         **kwargs) -> Sequence[Run]:
 
     runs = []
 
-    for target in targets:
-        logger.info(f'For target {target}:')
-        cohorts_df = concat_cohorts(cohorts=cohorts, target=target)
-        folded_df = create_folds(cohorts_df=cohorts_df, target=target, folds=folds,
-                                 valid_frac=.1, seed=seed)
+    for target_label in target_labels:
+        logger.info(f'For target {target_label}:')
+        cohorts_df = concat_cohorts(cohorts=cohorts, target=target_label)
+        folded_df = create_folds(cohorts_df=cohorts_df, target=target_label, folds=folds,
+                                 valid_frac=valid_frac, seed=seed)
         logger.info(f'Searching for tiles')
         tiles_df = get_tiles(cohorts_df=folded_df, max_tile_num=max_tile_num,
-                             target=target, seed=seed)
+                             target=target_label, seed=seed)
 
         for fold in sorted(folded_df.fold.unique()):
             logger.info(f'For fold {fold}:')
-            train_df = balance_classes(tiles_df=tiles_df[tiles_df.fold != fold], target=target)
+            train_df = balance_classes(tiles_df=tiles_df[tiles_df.fold != fold], target=target_label)
             logger.info(f'{len(train_df)} training tiles')
             test_df = tiles_df[tiles_df.fold == fold]
             logger.info(f'{len(test_df)} testing tiles')
             assert not test_df.empty, 'Empty fold in cross validation!'
 
-            runs.append(Run(directory=project_dir/target/f'fold_{fold}',
-                            target=target,
+            runs.append(Run(directory=project_dir/target_label/f'fold_{fold}',
+                            target=target_label,
                             train_df=train_df,
                             test_df=test_df))
 

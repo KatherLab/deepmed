@@ -30,6 +30,7 @@ TestDF = Type[pd.DataFrame]
 #TODO doc
 TilePredsDF = Type[pd.DataFrame]
 
+
 @dataclass
 class Run:
     directory: Path
@@ -66,15 +67,22 @@ Returns:
     `test_df`, but with additional columns for the predictions. #TODO reword
 """
 
+#FIXME `Evaluator` currently refers to both the metrics and the coordinator
 Evaluator = Callable[..., Any]
+
+
+@dataclass
+class Coordinator:
+    get: RunGetter
+    train: Optional[Trainer] = None
+    deploy: Optional[Deployer] = None
+    evaluate: Optional[Evaluator] = None
 
 
 def do_experiment(*,
         project_dir: Union[str, Path],
-        get_runs: RunGetter,
-        train: Optional[Trainer] = None,
-        deploy: Optional[Deployer] = None,
-        evaluate: Optional[Any] = None,  #TODO
+        mode: Coordinator,
+        save_models: bool = False,
         **kwargs) -> None:
 
     project_dir = Path(project_dir)
@@ -88,23 +96,23 @@ def do_experiment(*,
     logging.getLogger().addHandler(file_handler)
 
     logger.info('Getting runs')
-    runs = get_runs(project_dir=project_dir, **kwargs)
+    runs = mode.get(project_dir=project_dir, **kwargs)
     create_experiment_dirs_(runs)
 
     for run in runs:
         logger.info(f'Starting run {run.directory}')
         
-        model = (train_(train=train, exp=run, **kwargs)
-                 if train and run.train_df is not None
+        model = (train_(train=mode.train, exp=run, save_models=save_models, **kwargs)
+                 if mode.train and run.train_df is not None
                  else None)
 
-        preds_df = (deploy_(deploy=deploy, model=model, run=run, **kwargs)
-                    if deploy and run.test_df is not None
+        preds_df = (deploy_(deploy=mode.deploy, model=model, run=run, **kwargs)
+                    if mode.deploy and run.test_df is not None
                     else None)
 
-    if evaluate:
+    if mode.evaluate:
         logger.info('Evaluating')
-        preds_df = evaluate(project_dir, **kwargs)
+        preds_df = mode.evaluate(project_dir, **kwargs)
 
 
 def create_experiment_dirs_(runs: Iterable[Run]) -> None:
@@ -124,7 +132,7 @@ def create_experiment_dirs_(runs: Iterable[Run]) -> None:
                 exp.test_df.to_csv(exp.directory/'testing_set.csv', index=False)
 
 
-def train_(train: Trainer, exp: Run, **kwargs) -> Model:
+def train_(train: Trainer, exp: Run, save_models: bool, **kwargs) -> Model:
     model_path = exp.directory/'model.pt'
     if model_path.exists():
         logger.warning(f'{model_path} already exists, using old model!')
@@ -135,7 +143,8 @@ def train_(train: Trainer, exp: Run, **kwargs) -> Model:
                   train_df=exp.train_df,
                   result_dir=exp.directory,
                   **kwargs)
-    torch.save(model, model_path)
+    if save_models:
+        torch.save(model, model_path)
 
     return model
 
