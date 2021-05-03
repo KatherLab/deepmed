@@ -1,3 +1,4 @@
+import shutil
 from typing import Iterable, Callable, Sequence, Any, Mapping
 from pathlib import Path
 
@@ -42,7 +43,6 @@ def f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, **kwargs) \
         -> Mapping[str, float]:
     y_true = preds_df[target_label]
     y_pred = preds_df[f'{target_label}_pred']
-    #TODO what to do in multitarget case?
     return {
         f'{target_label}_{class_}_f1': skm.f1_score(y_true, y_pred, pos_label=class_)
         for class_ in y_true.unique()
@@ -57,6 +57,15 @@ def auroc(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, **kwargs
         skm.roc_auc_score(y_true==class_, preds_df[f'{target_label}_{class_}'])
         for class_ in y_true.unique()
     }
+
+
+def top_tiles(target_label: str, preds_df: pd.DataFrame, result_dir: Path,
+              top_n: int = 5, **kwargs) -> None:
+    for class_ in preds_df[target_label].unique():
+        save_dir = result_dir/'top_tiles'/class_
+        save_dir.mkdir(parents=True)
+        for tile_path in preds_df.nlargest(n=top_n, columns=target_label).tile_path:
+            shutil.copy(src=tile_path, dst=save_dir)
 
 
 import numpy as np
