@@ -37,11 +37,11 @@ def train(target_label: str, train_df: TrainDF, result_dir: Path,
     le = preprocessing.LabelEncoder()
 
     training_samples = train_df[~train_df.is_valid]
-    train_x = list(training_samples.block_path)
+    train_x = list(training_samples.tile_path)
     train_y = torch.tensor(le.fit_transform(training_samples[target_label]), dtype=torch.long)  #TODO why needed?
 
     valid_samples = train_df[train_df.is_valid]
-    val_x = list(valid_samples.block_path)
+    val_x = list(valid_samples.tile_path)
     val_y = torch.tensor(le.fit_transform(valid_samples[target_label]), dtype=torch.long)   #TODO
 
     # get model / datasets

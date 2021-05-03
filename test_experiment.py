@@ -12,8 +12,8 @@ do_experiment(
     target_evaluators=[Grouped(roc)],
     cohorts=[
         Cohort(root_dir='/media/markovt/KATHER-P01/DACHS-CRC-DX',
-               block_dir='BLOCKS_NORM_MACENKO',
+               tile_dir='BLOCKS_NORM_MACENKO',
                clini_table='CLINI_SMALL.csv')],
     batch_size=64,
     max_epochs=1,
-    max_block_num=10)
+    max_tile_num=10)

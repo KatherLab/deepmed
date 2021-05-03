@@ -6,11 +6,11 @@ PathLike = Union[str, Path]
 class Cohort:
     def __init__(self,
                  root_dir: PathLike,
-                 block_dir: PathLike,
+                 tile_dir: PathLike,
                  clini_table: Optional[PathLike] = None,
                  slide_table: Optional[PathLike] = None) -> None:
         self.root_dir = Path(root_dir)
-        self.block_dir = self.root_dir/block_dir
+        self.tile_dir = self.root_dir/tile_dir
 
         # search for clini / slide tables if none are given
         if clini_table:

@@ -20,7 +20,7 @@ def create_experiments(*,
         project_dir: Path,
         targets: Iterable[str],
         cohorts: Iterable[Cohort],
-        max_block_num: int = 500,
+        max_tile_num: int = 500,
         folds: int = 3,
         seed: int = 0,
         **kwargs) -> Sequence[Run]:
@@ -33,7 +33,7 @@ def create_experiments(*,
         folded_df = create_folds(cohorts_df=cohorts_df, target=target, folds=folds,
                                  valid_frac=.1, seed=seed)
         logger.info(f'Searching for tiles')
-        tiles_df = get_tiles(cohorts_df=folded_df, max_block_num=max_block_num,
+        tiles_df = get_tiles(cohorts_df=folded_df, max_tile_num=max_tile_num,
                              target=target, seed=seed)
 
         for fold in sorted(folded_df.fold.unique()):
@@ -84,7 +84,7 @@ def concat_cohorts(cohorts: Iterable[Cohort], target: str) -> pd.DataFrame:
     cohort_dfs: List[pd.DataFrame] = []
 
     for cohort in cohorts:
-        clini_path, slide_path, block_dir = cohort.clini_table, cohort.slide_table, cohort.block_dir
+        clini_path, slide_path, tile_dir = cohort.clini_table, cohort.slide_table, cohort.tile_dir
 
         clini_df = (pd.read_csv(clini_path) if clini_path.suffix == '.csv'
                     else pd.read_excel(clini_path))
@@ -115,7 +115,7 @@ def concat_cohorts(cohorts: Iterable[Cohort], target: str) -> pd.DataFrame:
         logger.info(f'#slides after removing slides without patient data: {len(cohort_df)}')
 
         # only keep slides which have tiles
-        cohort_df['BLOCK_DIR'] = block_dir/cohort_df['FILENAME']
+        cohort_df['BLOCK_DIR'] = tile_dir/cohort_df['FILENAME']
 
         cohort_dfs.append(cohort_df)
 
@@ -132,21 +132,21 @@ def concat_cohorts(cohorts: Iterable[Cohort], target: str) -> pd.DataFrame:
 
 
 #TODO df types
-def get_tiles(cohorts_df: pd.DataFrame, max_block_num: int, target: str, seed: int) -> pd.DataFrame:
+def get_tiles(cohorts_df: pd.DataFrame, max_tile_num: int, target: str, seed: int) -> pd.DataFrame:
     """Create df containing patient, tiles, other data."""
     random.seed(seed)   #FIXME doesn't work
-    blocks_dfs = []
+    tiles_dfs = []
     for patient, data in tqdm(cohorts_df.groupby('PATIENT')):
-        blocks = [file
-                  for block_dir in data['BLOCK_DIR']
-                  if block_dir.exists()
-                  for file in block_dir.iterdir()]
-        blocks = random.sample(blocks, min(len(blocks), max_block_num))
+        tiles = [file
+                 for tile_dir in data['BLOCK_DIR']
+                 if tile_dir.exists()
+                 for file in tile_dir.iterdir()]
+        tiles = random.sample(tiles, min(len(tiles), max_tile_num))
         
-        blocks_dfs.append(data.drop(columns='BLOCK_DIR')
-                              .merge(pd.Series(blocks, name='block_path'), how='cross'))
+        tiles_dfs.append(data.drop(columns='BLOCK_DIR')
+                             .merge(pd.Series(tiles, name='tile_path'), how='cross'))
 
-    tiles_df = pd.concat(blocks_dfs).reset_index(drop=True)
+    tiles_df = pd.concat(tiles_dfs).reset_index(drop=True)
     logger.info(f'Found {len(tiles_df)} tiles for {len(tiles_df["PATIENT"].unique())} patients')
 
     return tiles_df
