@@ -118,7 +118,7 @@ def plot_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: floa
 
 
 def roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path, **_kwargs) \
-        -> Mapping[str, float]:
+        -> None:
     y_true = preds_df[target_label]
     for class_ in y_true.unique():
         fig, ax = plt.subplots()

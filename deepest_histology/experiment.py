@@ -90,15 +90,21 @@ def do_experiment(*,
         **kwargs) -> None:
 
     project_dir = Path(project_dir)
-    logger.info(f'Starting project {project_dir}')
     project_dir.mkdir(exist_ok=True)
+
+    # add logfile handler
+    file_handler = logging.FileHandler(project_dir/'logfile')
+    file_handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s: %(levelname)s: %(name)s: %(message)s')
+    file_handler.setFormatter(formatter)
+    logging.getLogger().addHandler(file_handler)
 
     logger.info('Getting runs')
     runs = get_runs(project_dir=project_dir, **kwargs)
     create_experiment_dirs_(runs)
 
     for run in runs:
-        logger.info(f'Starting experiment {run.directory}')
+        logger.info(f'Starting run {run.directory}')
         
         model = (train_(train=train, exp=run, **kwargs)
                  if train and run.train_df is not None
@@ -108,8 +114,8 @@ def do_experiment(*,
                     if deploy and run.test_df is not None
                     else None)
 
-    logger.info('Evaluating')
     if evaluate:
+        logger.info('Evaluating')
         preds_df = evaluate(project_dir, **kwargs)
 
 

@@ -38,9 +38,10 @@ def create_runs(*,
 
         for fold in sorted(folded_df.fold.unique()):
             logger.info(f'For fold {fold}:')
-            train_df = balance_classes(tiles_df=tiles_df[tiles_df.fold != fold],
-                                       target=target)
-            test_df = tiles_df=tiles_df[tiles_df.fold == fold]
+            train_df = balance_classes(tiles_df=tiles_df[tiles_df.fold != fold], target=target)
+            logger.info(f'{len(train_df)} training tiles')
+            test_df = tiles_df[tiles_df.fold == fold]
+            logger.info(f'{len(test_df)} testing tiles')
             assert not test_df.empty, 'Empty fold in cross validation!'
 
             runs.append(Run(directory=project_dir/target/f'fold_{fold}',
@@ -157,7 +158,6 @@ def balance_classes(tiles_df: pd.DataFrame, target: str) -> pd.DataFrame:
         tiles_with_label = tiles_df[tiles_df[target] == label]
         to_keep = tiles_with_label.sample(n=smallest_class_count).index
         tiles_df = tiles_df[(tiles_df[target] != label) | (tiles_df.index.isin(to_keep))]
-    logger.info(f'{len(tiles_df)} tiles remaining after balancing classes')
 
     return tiles_df
 
