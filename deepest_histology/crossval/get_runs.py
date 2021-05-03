@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 from tqdm import tqdm
 
-from ..experiment import Run, TrainDF, TestDF, EvalDF
+from ..experiment import Run, TrainDF, TestDF, TilePredsDF
 from ..config import Cohort
 
 

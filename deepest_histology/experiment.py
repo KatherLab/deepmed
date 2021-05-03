@@ -27,19 +27,8 @@ TestDF = Type[pd.DataFrame]
 - block_path: Path:  A path to each tile.
 """
 
-TestResultDF = Type[pd.DataFrame]
-"""A pandas dataframe returned by a `Deployer`. It hase at least the following columns:
-
-- A column `{target_label}_pred`, where `target_label` is the name of the inferred target containing
-  the predictions of a model on a test set.
-- For categorical targets, a column `{target_label}_{class}` for each class, given the probability
-  that the test item is of that class
-- All columns present in the TestDF given to the `Deployer`.
-"""
-
 #TODO doc
-EvalDF = Type[pd.DataFrame]#['PATIENT', target_label, f'{target_label}_pred',
-                            # *[f'{target_label}_{class[c]}' for c in classes], ...]
+TilePredsDF = Type[pd.DataFrame]
 
 @dataclass
 class Run:
@@ -64,7 +53,7 @@ Returns:
     The trained model.
 """
 
-Deployer = Callable[..., EvalDF]
+Deployer = Callable[..., TilePredsDF]
 """A function which deployes a model.
 
 Required kwargs:
@@ -77,8 +66,7 @@ Returns:
     `test_df`, but with additional columns for the predictions. #TODO reword
 """
 
-# target_label, preds_df, result_dir
-Evaluator = Callable[[str, pd.DataFrame, Path], pd.DataFrame]
+Evaluator = Callable[..., Any]
 
 
 def do_experiment(*,

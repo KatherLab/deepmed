@@ -8,7 +8,7 @@ from torch import nn
 from sklearn import preprocessing
 from tqdm import tqdm
 
-from ..experiment import EvalDF #TODO EVALDF?
+from ..experiment import TilePredsDF
 from ..utils import log_defaults
 from .data import DatasetLoader
 from .model import initialize_model
@@ -19,7 +19,7 @@ def deploy(model: torch.nn.Module, target_label: str, test_df: pd.DataFrame, res
            model_name: str = 'resnet',
            batch_size: int = 64,
            feature_extract: bool = False,
-           **kwargs) -> EvalDF:
+           **kwargs) -> TilePredsDF:
 
     num_classes = 2 #TODO does this matter here?
     _, input_size = initialize_model(model_name, num_classes, feature_extract=feature_extract,
@@ -38,7 +38,7 @@ def deploy(model: torch.nn.Module, target_label: str, test_df: pd.DataFrame, res
 
     test_set = DatasetLoader(
         test_x, test_y, transform=torchvision.transforms.ToTensor, target_patch_size=input_size)
-    test_generator = torch.utils.data.DataLoader(test_set, **args)
+    test_generator = torch.utils.data.DataLoader(test_set, **args)  # type: ignore
 
     criterion = nn.CrossEntropyLoss()
 

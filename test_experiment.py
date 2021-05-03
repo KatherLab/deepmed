@@ -15,5 +15,5 @@ do_experiment(
                tile_dir='BLOCKS_NORM_MACENKO',
                clini_table='CLINI_SMALL.csv')],
     batch_size=64,
-    max_epochs=1,
-    max_tile_num=10)
+    max_epochs=4,
+    max_tile_num=1000)

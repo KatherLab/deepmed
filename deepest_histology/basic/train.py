@@ -18,6 +18,7 @@ from .data import DatasetLoader
 
 
 logger = logging.getLogger(__name__)
+
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu') #TODO
 
 
@@ -55,11 +56,11 @@ def train(target_label: str, train_df: TrainDF, result_dir: Path,
 
     train_set = DatasetLoader(
         train_x, train_y, transform=torchvision.transforms.ToTensor, target_patch_size=input_size)
-    traingenerator = torch.utils.data.DataLoader(train_set, **args)
+    traingenerator = torch.utils.data.DataLoader(train_set, **args) # type: ignore
 
     val_set = DatasetLoader(
         val_x, val_y, transform=torchvision.transforms.ToTensor, target_patch_size=input_size)
-    valgenerator = torch.utils.data.DataLoader(val_set, **args)
+    valgenerator = torch.utils.data.DataLoader(val_set, **args) # type: ignore
 
     logger.debug(f'{device = }')
     model_ft = model_ft.to(device)

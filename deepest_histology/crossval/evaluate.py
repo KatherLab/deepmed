@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Iterable, Dict, Any
 from pathlib import Path
 
 import pandas as pd
@@ -15,7 +15,6 @@ def evaluate(
         if not target_dir.is_dir():
             continue
 
-        target_dfs = []
         for target_dir in project_dir.iterdir():
             if not target_dir.is_dir():
                 continue
@@ -42,7 +41,7 @@ def evaluate(
                     subset_df['subset'] = subset_dir.name
                     subset_dfs.append(subset_df)
 
-                    stats = {}
+                    stats: Dict[str, Any] = {}
                     for evaluate in fold_evaluators:
                         stats.update(evaluate(target_label, subset_df, subset_dir, **kwargs) or {})
 

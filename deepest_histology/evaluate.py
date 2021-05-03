@@ -97,7 +97,7 @@ def plot_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: floa
             label='Chance', alpha=.8)
 
     mean_tpr = np.mean(tprs, axis=0)
-    mean_tpr[-1] = 1.0
+    mean_tpr[-1] = 1.0  # type: ignore
     auc_mean = auc(mean_fpr, mean_tpr)
     auc_dev = z_star * np.std(aucs)
     ax.plot(mean_fpr, mean_tpr, color='b',
