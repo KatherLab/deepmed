@@ -9,5 +9,5 @@ from deepest_histology.experiment import do_experiment
 from deepest_histology.config import Cohort
 from deepest_histology.evaluate import *
 
-from deepest_histology.basic import basic
+from deepest_histology.basic import train_test, train_only, deploy_only
 from deepest_histology.crossval import crossval
