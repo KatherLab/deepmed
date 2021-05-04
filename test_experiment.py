@@ -3,7 +3,7 @@ from deepest_histology.experiment_imports import *
 
 do_experiment(
     project_dir='markos_test_project',
-    mode=basic,
+    mode=train_test,
     target_labels=['isMSIH'],
     train_cohorts=[
         Cohort(root_dir='/media/markovt/KATHER-P01/DACHS-CRC-DX',

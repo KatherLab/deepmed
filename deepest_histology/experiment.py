@@ -67,16 +67,13 @@ Returns:
     `test_df`, but with additional columns for the predictions. #TODO reword
 """
 
-#FIXME `Evaluator` currently refers to both the metrics and the coordinator
-Evaluator = Callable[..., Any]
-
 
 @dataclass
 class Coordinator:
     get: RunGetter
     train: Optional[Trainer] = None
     deploy: Optional[Deployer] = None
-    evaluate: Optional[Evaluator] = None
+    evaluate: Optional[Callable] = None
 
 
 def do_experiment(*,
