@@ -40,16 +40,18 @@ def create_runs(*,
 
         for fold in sorted(folded_df.fold.unique()):
             logger.info(f'For fold {fold}:')
-            #TODO actually balance train / valid independently
-            train_df = balance_classes(tiles_df=tiles_df[tiles_df.fold != fold], target=target_label)
+            train_df = balance_classes(tiles_df=tiles_df[(tiles_df.fold != fold) & ~tiles_df.is_valid], target=target_label)
+            valid_df = balance_classes(tiles_df=tiles_df[(tiles_df.fold != fold) & tiles_df.is_valid], target=target_label)
             logger.info(f'{len(train_df)} training tiles')
+            logger.info(f'{len(valid_df)} validation tiles')
+
             test_df = tiles_df[tiles_df.fold == fold]
             logger.info(f'{len(test_df)} testing tiles')
             assert not test_df.empty, 'Empty fold in cross validation!'
 
             runs.append(Run(directory=project_dir/target_label/f'fold_{fold}',
                             target=target_label,
-                            train_df=train_df,
+                            train_df=pd.concat([train_df, valid_df]),
                             test_df=test_df))
 
     return runs
