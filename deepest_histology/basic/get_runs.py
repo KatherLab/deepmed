@@ -90,7 +90,7 @@ def concat_cohorts(cohorts: Iterable[Cohort], target: str) -> pd.DataFrame:
         for na_value in ['NA', 'NA ', 'NAN', 'N/A', 'na', 'n.a', 'N.A', 'UNKNOWN', 'x',
                         'NotAPPLICABLE', 'NOTPERFORMED', 'NotPerformed', 'Notassigned', 'excluded',
                         'exclide', '#NULL', 'PerformedButNotAvailable', 'x_', 'NotReported',
-                        'notreported', 'INCONCLUSIVE']:
+                        'notreported', 'INCONCLUSIVE', 'Not Performed', 'Performed but Not Available']:
             clini_df = clini_df[clini_df[target] != na_value]
 
         logger.info(f'#slides after removing N/As: {len(clini_df)}')
@@ -144,6 +144,7 @@ def get_tiles(cohorts_df: pd.DataFrame, max_tile_num: int, target: str, seed: in
 
 
 def balance_classes(tiles_df: pd.DataFrame, target: str) -> pd.DataFrame:
+    logging.info(str(tiles_df[target].value_counts()))
     smallest_class_count = min(tiles_df[target].value_counts())
     for label in tiles_df[target].unique():
         tiles_with_label = tiles_df[tiles_df[target] == label]

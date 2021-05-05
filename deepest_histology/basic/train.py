@@ -39,11 +39,11 @@ def train(target_label: str, train_df: TrainDF, result_dir: Path,
 
     training_samples = train_df[~train_df.is_valid]
     train_x = list(training_samples.tile_path)
-    train_y = torch.tensor(le.fit_transform(training_samples[target_label]), dtype=torch.long)  #TODO why needed?
+    train_y = torch.tensor(le.fit_transform(training_samples[target_label]), dtype=torch.long)
 
     valid_samples = train_df[train_df.is_valid]
     val_x = list(valid_samples.tile_path)
-    val_y = torch.tensor(le.fit_transform(valid_samples[target_label]), dtype=torch.long)   #TODO
+    val_y = torch.tensor(le.fit_transform(valid_samples[target_label]), dtype=torch.long)
 
     # get model / datasets
     model_ft, input_size = initialize_model(

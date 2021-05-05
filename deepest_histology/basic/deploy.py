@@ -29,7 +29,7 @@ def deploy(model: torch.nn.Module, target_label: str, test_df: pd.DataFrame, res
     target_label_dict = dict(zip(le.classes_, range(len(le.classes_))))
 
     test_x = list(test_df.tile_path)
-    test_y = le.fit_transform(test_df[target_label])
+    test_y = torch.tensor(le.fit_transform(test_df[target_label]), dtype=torch.long)
 
     args = {'batch_size': batch_size,
             'shuffle': False,

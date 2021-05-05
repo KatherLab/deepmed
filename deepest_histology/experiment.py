@@ -79,7 +79,7 @@ class Coordinator:
 def do_experiment(*,
         project_dir: Union[str, Path],
         mode: Coordinator,
-        save_models: bool = False,
+        save_models: bool = True,
         **kwargs) -> None:
 
     project_dir = Path(project_dir)
