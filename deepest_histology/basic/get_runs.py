@@ -30,9 +30,13 @@ def create_runs(*,
 
     for target_label in target_labels:
         logger.info(f'For target {target_label}:')
+
         # training set
-        train_df = None
-        if train_cohorts:
+        if (training_set_path := project_dir/target_label/'training_set.csv').exists():
+            # load old training set if it exists
+            logger.warning(f'{training_set_path} already exists, using old training set!')
+            train_df = pd.read_csv(training_set_path)
+        elif train_cohorts:
             cohorts_df = concat_cohorts(cohorts=train_cohorts, target=target_label)
 
             # split off validation set
@@ -47,19 +51,33 @@ def create_runs(*,
 
             valid_df = balance_classes(tiles_df=tiles_df[tiles_df.is_valid], target=target_label)
             train_df = balance_classes(tiles_df=tiles_df[~tiles_df.is_valid], target=target_label)
-            logger.info(f'{len(train_df)} training tiles')
+            logger.info(f'{len(train_df)} training tiles: '
+                        f'{dict(train_df[target_label].value_counts())}')
+            logger.info(f'{len(valid_df)} validation tiles: '
+                        f'{dict(valid_df[target_label].value_counts())}')
+
+            train_df = pd.concat([train_df, valid_df])
+        else:
+            train_df = None
 
         # test set
-        test_df = None
-        if test_cohorts:
+        if (testing_set_path := project_dir/target_label/'testing_set.csv').exists():
+            # load old testing set if it exists
+            logger.warning(f'{testing_set_path} already exists, using old testing set!')
+            test_df = pd.read_csv(testing_set_path)
+        elif test_cohorts:
             cohorts_df = concat_cohorts(cohorts=test_cohorts, target=target_label)
             logger.info(f'Searching for training tiles')
             test_df = get_tiles(cohorts_df=cohorts_df, max_tile_num=max_tile_num,
                                 target=target_label, seed=seed)
+            logger.info(f'{len(test_df)} testing tiles: '
+                        f'{dict(test_df[target_label].value_counts())}')
+        else:
+            test_df = None
 
         runs.append(Run(directory=project_dir/target_label,
                         target=target_label,
-                        train_df=pd.concat([train_df, valid_df]),
+                        train_df=train_df,
                         test_df=test_df))
 
     return runs

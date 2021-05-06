@@ -94,7 +94,7 @@ def do_experiment(*,
 
     logger.info('Getting runs')
     runs = mode.get(project_dir=project_dir, **kwargs)
-    create_experiment_dirs_(runs)
+    save_run_files_(runs)
 
     for run in runs:
         logger.info(f'Starting run {run.directory}')
@@ -112,21 +112,15 @@ def do_experiment(*,
         preds_df = mode.evaluate(project_dir, **kwargs)
 
 
-def create_experiment_dirs_(runs: Iterable[Run]) -> None:
+def save_run_files_(runs: Iterable[Run]) -> None:
     for exp in runs:
         exp.directory.mkdir(exist_ok=True, parents=True)
-        if exp.train_df is not None:
-            if (training_set_path := exp.directory/'training_set.csv').exists():
-                logger.warning(f'{training_set_path} already exists, using old training set!')
-                exp.train_df = pd.read_csv(training_set_path)
-            else:
-                exp.train_df.to_csv(exp.directory/'training_set.csv', index=False)
-        if exp.test_df is not None:
-            if (testing_set_path := exp.directory/'testing_set.csv').exists():
-                logger.warning(f'{testing_set_path} already exists, using old testing set!')
-                exp.test_df = pd.read_csv(testing_set_path)
-            else:
-                exp.test_df.to_csv(exp.directory/'testing_set.csv', index=False)
+        if exp.train_df is not None and \
+                not (training_set_path := exp.directory/'training_set.csv').exists():
+            exp.train_df.to_csv(exp.directory/'training_set.csv', index=False)
+        if exp.test_df is not None and \
+                not (testing_set_path := exp.directory/'testing_set.csv').exists():
+            exp.test_df.to_csv(exp.directory/'testing_set.csv', index=False)
 
 
 def train_(train: Trainer, exp: Run, save_models: bool, **kwargs) -> Model:

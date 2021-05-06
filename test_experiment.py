@@ -9,6 +9,10 @@ do_experiment(
         Cohort(root_dir='/media/markovt/KATHER-P01/DACHS-CRC-DX',
                tile_dir='BLOCKS_NORM_MACENKO',
                clini_table='CLINI_SMALL.csv')],
+    test_cohorts=[
+        Cohort(root_dir='/media/markovt/KATHER-P01/DACHS-CRC-DX',
+               tile_dir='BLOCKS_NORM_MACENKO',
+               clini_table='CLINI_SMALL.csv')],
     fold_evaluators=[auroc, SubGrouped(Grouped(auroc), by='GENDER')],
     target_evaluators=[Grouped(roc)],
     save_models=True,
