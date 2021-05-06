@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 def create_runs(*,
         project_dir: Path,
         target_labels: Iterable[str],
-        cohorts: Iterable[Cohort],
+        cohorts: Iterable[Cohort] = [],
         max_tile_num: int = 500,
         folds: int = 3,
         seed: int = 0,
@@ -30,29 +30,46 @@ def create_runs(*,
     runs = []
 
     for target_label in target_labels:
+        existing_fold_dirs = [fold_dir
+                              for fold_dir in (project_dir/target_label).iterdir()
+                              if fold_dir.is_dir() and fold_dir.name.startswith('fold_')] \
+                if (project_dir/target_label).is_dir() else None
+
         logger.info(f'For target {target_label}:')
-        cohorts_df = concat_cohorts(cohorts=cohorts, target=target_label)
-        folded_df = create_folds(cohorts_df=cohorts_df, target=target_label, folds=folds,
-                                 valid_frac=valid_frac, seed=seed)
-        logger.info(f'Searching for tiles')
-        tiles_df = get_tiles(cohorts_df=folded_df, max_tile_num=max_tile_num,
-                             target=target_label, seed=seed)
+        if existing_fold_dirs:
+            logger.info(f'Using old training and testing set')
+            for fold_dir in existing_fold_dirs:
+                train_path = fold_dir/'training_set.csv'
+                test_path = fold_dir/'testing_set.csv'
+                runs.append(
+                    Run(directory=fold_dir,
+                        target=target_label,
+                        train_df=pd.read_csv(train_path) if train_path.exists else None,
+                        test_df=pd.read_csv(test_path) if test_path.exists else None))
+        else:
+            assert cohorts, 'No old training and testing sets found and no cohorts given!'
+            cohorts_df = concat_cohorts(cohorts=cohorts, target=target_label)
+            folded_df = create_folds(cohorts_df=cohorts_df, target=target_label, folds=folds,
+                                    valid_frac=valid_frac, seed=seed)
+            logger.info(f'Searching for tiles')
+            tiles_df = get_tiles(cohorts_df=folded_df, max_tile_num=max_tile_num,
+                                target=target_label, seed=seed)
 
-        for fold in sorted(folded_df.fold.unique()):
-            logger.info(f'For fold {fold}:')
-            train_df = balance_classes(tiles_df=tiles_df[(tiles_df.fold != fold) & ~tiles_df.is_valid], target=target_label)
-            valid_df = balance_classes(tiles_df=tiles_df[(tiles_df.fold != fold) & tiles_df.is_valid], target=target_label)
-            logger.info(f'{len(train_df)} training tiles')
-            logger.info(f'{len(valid_df)} validation tiles')
+            for fold in sorted(folded_df.fold.unique()):
+                logger.info(f'For fold {fold}:')
+                train_df = balance_classes(tiles_df=tiles_df[(tiles_df.fold != fold) & ~tiles_df.is_valid], target=target_label)
+                valid_df = balance_classes(tiles_df=tiles_df[(tiles_df.fold != fold) & tiles_df.is_valid], target=target_label)
+                logger.info(f'{len(train_df)} training tiles')
+                logger.info(f'{len(valid_df)} validation tiles')
 
-            test_df = tiles_df[tiles_df.fold == fold]
-            logger.info(f'{len(test_df)} testing tiles')
-            assert not test_df.empty, 'Empty fold in cross validation!'
+                test_df = tiles_df[tiles_df.fold == fold]
+                logger.info(f'{len(test_df)} testing tiles')
+                assert not test_df.empty, 'Empty fold in cross validation!'
 
-            runs.append(Run(directory=project_dir/target_label/f'fold_{fold}',
-                            target=target_label,
-                            train_df=pd.concat([train_df, valid_df]),
-                            test_df=test_df))
+                runs.append(Run(directory=project_dir/target_label/f'fold_{fold}',
+                                target=target_label,
+                                train_df=pd.concat([train_df, valid_df]),
+                                test_df=test_df))
 
     return runs
 
@@ -85,7 +102,6 @@ def create_folds(
         -> pd.DataFrame:
 
     kf = StratifiedKFold(n_splits=folds, random_state=seed, shuffle=True)
-    kf.get_n_splits(cohorts_df['PATIENT'], cohorts_df[target])
 
     # Pepare our dataframe
     # We enumerate each fold; this way, the training set for the `k`th iteration can be easily
