@@ -12,9 +12,14 @@ import sklearn.metrics as skm
 def Grouped(evaluate: Evaluator, by: str = 'PATIENT'):
     def grouped(target_label, preds_df, result_dir, **kwargs):
         grouped_df = preds_df.groupby(by).first()
-        grouped_df.update(preds_df.groupby(by).mean())  #TODO
+        for class_ in preds_df[target_label].unique():
+            grouped_df[f'{target_label}_{class_}'] = (
+                    preds_df.groupby(by)[f'{target_label}_pred']
+                            .agg(lambda x: sum(x == class_) / len(x)))
 
-        results = evaluate(target_label, grouped_df, result_dir, **kwargs)
+        group_dir = result_dir/by
+        group_dir.mkdir(exist_ok=True)
+        results = evaluate(target_label, grouped_df, group_dir, **kwargs)
         if results:
             return { f'{eval_name}_{by}': val for eval_name, val in results.items() }
 
@@ -36,7 +41,7 @@ def accuracy(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, **kwa
         -> Mapping[str, float]:
     y_true = preds_df[target_label]
     y_pred = preds_df[f'{target_label}_pred']
-    return skm.accuracy_score(y_true, y_pred)
+    return {f'{target_label}_accuracy': skm.accuracy_score(y_true, y_pred)}
 
 
 def f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, **kwargs) \
@@ -120,7 +125,7 @@ def plot_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: floa
                     label=f'{conf*100:g}% Confidence Interval')
 
     ax.set(xlim=[-0.05, 1.05], ylim=[-0.05, 1.05],
-           title=f'{pos_label} ROC')
+           title=f'{target_label}: {pos_label} ROC')
     ax.legend(loc="lower right")
     
     return auc_mean, auc_dev
@@ -132,4 +137,4 @@ def roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path, **_kwargs) 
     for class_ in y_true.unique():
         fig, ax = plt.subplots()
         _, _ = plot_roc(preds_df, target_label, class_, ax=ax, conf=.95)
-        fig.savefig(result_dir/f'roc_{class_}.png')
+        fig.savefig(result_dir/f'roc_{target_label}_{class_}.png')
