@@ -2,6 +2,7 @@ import logging
 from typing import Iterable, Dict, Any
 from pathlib import Path
 
+import scipy
 import pandas as pd
 
 from ..basic.evaluate import Evaluator
@@ -57,10 +58,14 @@ def evaluate(
 
         # accumulate simple statistics over folds
         stats_df = pd.concat(subset_stats_dfs)
-        mean, std = stats_df.mean(), stats_df.std()
+        n = len(stats_df)
+        mean, sem = stats_df.mean(), stats_df.sem()
+        confidence = .95
+        h = sem * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
+
         stats_df.loc['mean'] = mean
-        stats_df.loc['std'] = std
-        stats_df.to_csv(target_dir/'results.csv', index=False)
+        stats_df.loc['95% conf'] = h
+        stats_df.to_csv(target_dir/'results.csv')
 
         subsets_df = pd.concat(subset_dfs)
         stats = {}
