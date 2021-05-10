@@ -23,7 +23,7 @@ def evaluate(
 
         target_label = target_dir.name
 
-        if not (preds_path := target_dir/'predictions.csv').exists():
+        if not (preds_path := target_dir/'predictions.csv.zip').exists():
             logger.warning(f'Could not find predictions at {preds_path}')
             continue
 
@@ -47,4 +47,7 @@ def evaluate(
         stats_df.to_csv(target_dir/'results.csv', index=False)
         stats_dfs.append(stats_df)
 
-    pd.concat(stats_dfs, axis=1).to_csv(project_dir/'results.csv')
+    if stats_dfs:
+        pd.concat(stats_dfs, axis=1).to_csv(project_dir/'results.csv', index=False)
+    else:
+        logger.info('Nothing to evaluate')

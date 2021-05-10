@@ -8,7 +8,6 @@ from torch import nn
 from sklearn import preprocessing
 from tqdm import tqdm
 
-from ..experiment import TilePredsDF
 from ..utils import log_defaults
 from .data import DatasetLoader
 from .model import initialize_model
@@ -19,7 +18,7 @@ def deploy(model: torch.nn.Module, target_label: str, test_df: pd.DataFrame, res
            model_name: str = 'resnet',
            batch_size: int = 64,
            feature_extract: bool = False,
-           **kwargs) -> TilePredsDF:
+           **kwargs) -> pd.DataFrame:
 
     num_classes = 2 #TODO does this matter here?
     _, input_size = initialize_model(model_name, num_classes, feature_extract=feature_extract,

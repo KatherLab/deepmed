@@ -12,7 +12,6 @@ from torch import optim
 from sklearn import preprocessing
 from tqdm import tqdm
 
-from ..experiment import TrainDF
 from ..utils import log_defaults
 from .model import initialize_model
 from .data import DatasetLoader
@@ -24,7 +23,7 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 
 
 @log_defaults
-def train(target_label: str, train_df: TrainDF, result_dir: Path,
+def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
           model_name: str = 'resnet',
           batch_size: int = 64,
           freeze_ratio: float = .5,

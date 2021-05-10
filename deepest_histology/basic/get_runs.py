@@ -8,14 +8,15 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-from ..experiment import Run, TrainDF, TestDF, TilePredsDF
+from ..experiment import Run
 from ..config import Cohort
+from ..utils import log_defaults
 
 
 logger = logging.getLogger(__name__)
 
 
-#TODO log defaults
+@log_defaults
 def create_runs(*,
         project_dir: Path,
         target_labels: Iterable[str],
@@ -162,7 +163,7 @@ def get_tiles(cohorts_df: pd.DataFrame, max_tile_num: int, target: str, seed: in
 
 
 def balance_classes(tiles_df: pd.DataFrame, target: str) -> pd.DataFrame:
-    logging.info(str(tiles_df[target].value_counts()))
+    logger.info(str(dict(tiles_df[target].value_counts())))
     smallest_class_count = min(tiles_df[target].value_counts())
     for label in tiles_df[target].unique():
         tiles_with_label = tiles_df[tiles_df[target] == label]

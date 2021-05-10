@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 from tqdm import tqdm
 
-from ..experiment import Run, TrainDF, TestDF, TilePredsDF
+from ..experiment import Run
 from ..config import Cohort
 from ..basic.get_runs import concat_cohorts, get_tiles, balance_classes
 
@@ -39,8 +39,8 @@ def create_runs(*,
         if existing_fold_dirs:
             logger.info(f'Using old training and testing set')
             for fold_dir in existing_fold_dirs:
-                train_path = fold_dir/'training_set.csv'
-                test_path = fold_dir/'testing_set.csv'
+                train_path = fold_dir/'training_set.csv.zip'
+                test_path = fold_dir/'testing_set.csv.zip'
                 runs.append(
                     Run(directory=fold_dir,
                         target=target_label,

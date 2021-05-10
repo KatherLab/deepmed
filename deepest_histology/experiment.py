@@ -13,30 +13,28 @@ logger = logging.getLogger(__name__)
 Model = TypeVar('Model')
 """An object which the Deployer can apply to a test set."""
 
-TrainDF = Type[pd.DataFrame]
-"""A pandas dataframe having at least the following columns:
-
-- block_path: Path:  A path to each tile.   #TODO unify block/tile nomenclature
-- is_valid: bool:  True if the tile should be used for validation (e.g. for early stopping).
-- At least one target column.
-"""
-
-TestDF = Type[pd.DataFrame]
-"""A pandas dataframe having at least the following columns:
-
-- block_path: Path:  A path to each tile.
-"""
-
-#TODO doc
-TilePredsDF = Type[pd.DataFrame]
-
 
 @dataclass
 class Run:
+    """A collection of data to train or test a model."""
     directory: Path
+    """The directory to save data in for this run."""
     target: str
-    train_df: Optional[TrainDF]
-    test_df: Optional[TestDF]
+    """The name of the target to train or deploy on."""
+    train_df: Optional[pd.DataFrame] = None
+    """A dataframe mapping tiles to be used for training to their targets.
+
+    It contains at least the following columns:
+    - tile_path: Path
+    - is_valid: bool:  whether the tile should be used for validation (e.g. for early stopping).
+    - At least one target column with the name saved in the run's `target`.
+    """
+    test_df: Optional[pd.DataFrame] = None
+    """A dataframe mapping tiles used for testing to their targets.
+
+    It contains at least the following columns:
+    - tile_path: Path
+    """
 
 
 RunGetter = Callable[..., Sequence[Run]]
@@ -54,7 +52,7 @@ Returns:
     The trained model.
 """
 
-Deployer = Callable[..., TilePredsDF]
+Deployer = Callable[..., pd.DataFrame]
 """A function which deployes a model.
 
 Required kwargs:
@@ -64,24 +62,39 @@ Required kwargs:
     result_dir:  A folder to write intermediate results to.
 
 Returns:
-    `test_df`, but with additional columns for the predictions. #TODO reword
+    `test_df`, but with at least an additional column for the target predictions.
 """
 
 
 @dataclass
 class Coordinator:
+    """Defines how an experiment is to be performed."""
     get: RunGetter
+    """A function which generates runs."""
     train: Optional[Trainer] = None
+    """A function which trains a model for each of the runs."""
     deploy: Optional[Deployer] = None
+    """A function which deploys a trained model to a test set, yielding predictions."""
     evaluate: Optional[Callable] = None
+    """A function which takes a model's predictions and calculates metrics, creates graphs, etc."""
+
+
+PathLike = Union[str, Path]
 
 
 def do_experiment(*,
-        project_dir: Union[str, Path],
+        project_dir: PathLike,
         mode: Coordinator,
-        model_path: Optional[Path] = None,
+        model_path: Optional[PathLike] = None,
         save_models: bool = True,
         **kwargs) -> None:
+    """Runs an experiement.
+    
+    Args:
+        project_dir: The directory to save project data in.
+        mode: how to perform the training / testing process.
+        save_models: whether or not to save the resulting models.
+    """
 
     project_dir = Path(project_dir)
     project_dir.mkdir(exist_ok=True)
@@ -118,11 +131,11 @@ def save_run_files_(runs: Iterable[Run]) -> None:
     for exp in runs:
         exp.directory.mkdir(exist_ok=True, parents=True)
         if exp.train_df is not None and \
-                not (training_set_path := exp.directory/'training_set.csv').exists():
-            exp.train_df.to_csv(exp.directory/'training_set.csv', index=False)
+                not (training_set_path := exp.directory/'training_set.csv.zip').exists():
+            exp.train_df.to_csv(training_set_path, index=False, compression='zip')
         if exp.test_df is not None and \
-                not (testing_set_path := exp.directory/'testing_set.csv').exists():
-            exp.test_df.to_csv(exp.directory/'testing_set.csv', index=False)
+                not (testing_set_path := exp.directory/'testing_set.csv.zip').exists():
+            exp.test_df.to_csv(testing_set_path, index=False, compression='zip')
 
 
 def train_(train: Trainer, exp: Run, save_models: bool, **kwargs) -> Model:
@@ -142,9 +155,9 @@ def train_(train: Trainer, exp: Run, save_models: bool, **kwargs) -> Model:
     return model
 
 
-def deploy_(deploy: Deployer, model: Optional[Model], run: Run, model_path: Optional[Path],
+def deploy_(deploy: Deployer, model: Optional[Model], run: Run, model_path: Optional[PathLike],
         **kwargs) -> pd.DataFrame:
-    preds_path = run.directory/'predictions.csv'
+    preds_path = run.directory/'predictions.csv.zip'
     if preds_path.exists():
         logger.warning(f'{preds_path} already exists, using old predictions!')
         return pd.read_csv(preds_path)
@@ -159,6 +172,6 @@ def deploy_(deploy: Deployer, model: Optional[Model], run: Run, model_path: Opti
                       test_df=run.test_df,
                       result_dir=run.directory,
                       **kwargs)
-    preds_df.to_csv(preds_path, index=False)
+    preds_df.to_csv(preds_path, index=False, compression='zip')
 
     return preds_df
