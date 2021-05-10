@@ -28,11 +28,14 @@ def Grouped(evaluate: Evaluator, by: str = 'PATIENT'):
 
 def SubGrouped(evaluate: Evaluator, by: str):
     def sub_grouped(target_label, preds_df, result_dir, **kwargs):
-        return {
-            f'{eval_name}_{group}': res
-            for group, group_df in preds_df.groupby(by)
-            for eval_name, res in evaluate(target_label, group_df, result_dir, **kwargs).items()
-        }
+        results = {}
+        for group, group_df in preds_df.groupby(by):
+            group_dir = result_dir/group
+            group_dir.mkdir(parents=True, exist_ok=True)
+            if (group_results := evaluate(target_label, group_df, group_dir, **kwargs)):
+                for eval_name, score in group_results.items():
+                    results[f'{eval_name}_{group}'] = score
+        return results
 
     return sub_grouped
 
@@ -84,7 +87,7 @@ from scipy.stats import norm
 
 def plot_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: float = 0.95):
     # see <https://en.wikipedia.org/wiki/Confidence_interval#Basic_steps>
-    z_star = -norm.ppf((1-conf)/2)
+    z_star = -norm.ppf((1-conf)/2)  #TODO check: is this right? Confidence intervals are confusing
 
     # gracefully stolen from <https://scikit-learn.org/stable/auto_examples/model_selection/plot_roc_crossval.html>
     tprs = []
