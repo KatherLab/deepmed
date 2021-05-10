@@ -79,6 +79,7 @@ class Coordinator:
 def do_experiment(*,
         project_dir: Union[str, Path],
         mode: Coordinator,
+        model_path: Optional[Path] = None,
         save_models: bool = True,
         **kwargs) -> None:
 
@@ -103,7 +104,8 @@ def do_experiment(*,
                  if mode.train and run.train_df is not None
                  else None)
 
-        preds_df = (deploy_(deploy=mode.deploy, model=model, run=run, **kwargs)
+        preds_df = (deploy_(deploy=mode.deploy, model=model, run=run, model_path=model_path,
+                            **kwargs)
                     if mode.deploy and run.test_df is not None
                     else None)
 
@@ -140,7 +142,8 @@ def train_(train: Trainer, exp: Run, save_models: bool, **kwargs) -> Model:
     return model
 
 
-def deploy_(deploy: Deployer, model: Optional[Model], run: Run, **kwargs):
+def deploy_(deploy: Deployer, model: Optional[Model], run: Run, model_path: Optional[Path],
+        **kwargs) -> pd.DataFrame:
     preds_path = run.directory/'predictions.csv'
     if preds_path.exists():
         logger.warning(f'{preds_path} already exists, using old predictions!')
@@ -148,7 +151,7 @@ def deploy_(deploy: Deployer, model: Optional[Model], run: Run, **kwargs):
 
     if not model:
         logger.info('Loading model')
-        model = torch.load(run.directory/'model.pt')
+        model = torch.load(model_path or run.directory/'model.pt')
 
     logger.info('Getting predictions')
     preds_df = deploy(model=model,

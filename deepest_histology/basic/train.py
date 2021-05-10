@@ -2,6 +2,7 @@ import time
 import logging
 import os
 from pathlib import Path
+from typing import Optional
 
 import torch
 import torchvision
