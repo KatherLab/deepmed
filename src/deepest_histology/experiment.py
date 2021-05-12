@@ -4,6 +4,8 @@ from typing import Type, Sequence, Tuple, Callable, Optional, Any, Dict, TypeVar
 from pathlib import Path
 from dataclasses import dataclass
 
+from fastai.vision.all import Learner, load_learner
+
 import pandas as pd
 import torch
 
@@ -113,11 +115,11 @@ def do_experiment(*,
     for run in runs:
         logger.info(f'Starting run {run.directory}')
         
-        model = (train_(train=mode.train, exp=run, save_models=save_models, **kwargs)
+        learn = (train_(train=mode.train, exp=run, save_models=save_models, **kwargs)
                  if mode.train and run.train_df is not None
                  else None)
 
-        preds_df = (deploy_(deploy=mode.deploy, model=model, run=run, model_path=model_path,
+        preds_df = (deploy_(deploy=mode.deploy, learn=learn, run=run, model_path=model_path,
                             **kwargs)
                     if mode.deploy and run.test_df is not None
                     else None)
@@ -139,35 +141,33 @@ def save_run_files_(runs: Iterable[Run]) -> None:
 
 
 def train_(train: Trainer, exp: Run, save_models: bool, **kwargs) -> Model:
-    model_path = exp.directory/'model.pt'
+    model_path = exp.directory/'export.pkl'
     if model_path.exists():
         logger.warning(f'{model_path} already exists, using old model!')
-        return torch.load(model_path)
+        return load_learner(model_path)
 
     logger.info('Starting training')
-    model = train(target_label=exp.target,
+    learn = train(target_label=exp.target,
                   train_df=exp.train_df,
                   result_dir=exp.directory,
                   **kwargs)
-    if save_models:
-        torch.save(model, model_path)
 
-    return model
+    return learn
 
 
-def deploy_(deploy: Deployer, model: Optional[Model], run: Run, model_path: Optional[PathLike],
-        **kwargs) -> pd.DataFrame:
+def deploy_(deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Optional[PathLike],
+            **kwargs) -> pd.DataFrame:
     preds_path = run.directory/'predictions.csv.zip'
     if preds_path.exists():
         logger.warning(f'{preds_path} already exists, using old predictions!')
         return pd.read_csv(preds_path)
 
-    if not model:
+    if not learn:
         logger.info('Loading model')
-        model = torch.load(model_path or run.directory/'model.pt')
+        learn = load_learner(model_path or run.directory/'export.pkl', cpu=False)
 
     logger.info('Getting predictions')
-    preds_df = deploy(model=model,
+    preds_df = deploy(learn=learn,
                       target_label=run.target,
                       test_df=run.test_df,
                       result_dir=run.directory,
