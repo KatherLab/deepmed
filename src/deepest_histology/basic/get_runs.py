@@ -25,6 +25,7 @@ def create_runs(*,
         max_tile_num: int = 500,
         seed: int = 0,
         valid_frac: float = .1,
+        na_values: Iterable[Any] = [],
         **kwargs) -> Sequence[Run]:
     """Creates runs for a basic test-deploy procedure.
 
@@ -59,7 +60,8 @@ def create_runs(*,
             logger.warning(f'{training_set_path} already exists, using old training set!')
             train_df = pd.read_csv(training_set_path)
         elif train_cohorts:
-            cohorts_df = concat_cohorts(cohorts=train_cohorts, target=target_label)
+            cohorts_df = concat_cohorts(
+                cohorts=train_cohorts, target_label=target_label, na_values=na_values)
 
             # split off validation set
             patients = cohorts_df.groupby('PATIENT')[target_label].first()
@@ -88,7 +90,8 @@ def create_runs(*,
             logger.warning(f'{testing_set_path} already exists, using old testing set!')
             test_df = pd.read_csv(testing_set_path)
         elif test_cohorts:
-            cohorts_df = concat_cohorts(cohorts=test_cohorts, target=target_label)
+            cohorts_df = concat_cohorts(
+                cohorts=test_cohorts, target_label=target_label, na_values=na_values)
             logger.info(f'Searching for training tiles')
             test_df = get_tiles(cohorts_df=cohorts_df, max_tile_num=max_tile_num,
                                 target=target_label, seed=seed)
@@ -105,7 +108,8 @@ def create_runs(*,
     return runs
 
 
-def concat_cohorts(cohorts: Iterable[Cohort], target: str) -> pd.DataFrame:
+def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iterable[Any]) \
+        -> pd.DataFrame:
     """Constructs a dataframe containing patient, slide and label data for multiple cohorts.
     
     Returns:
@@ -115,6 +119,7 @@ def concat_cohorts(cohorts: Iterable[Cohort], target: str) -> pd.DataFrame:
     cohort_dfs: List[pd.DataFrame] = []
 
     for cohort in cohorts:
+        logger.info(f'For cohort {cohort}')
         clini_path, slide_path, tile_dir = cohort.clini_table, cohort.slide_table, cohort.tile_dir
 
         clini_df = (pd.read_csv(clini_path) if clini_path.suffix == '.csv'
@@ -125,13 +130,10 @@ def concat_cohorts(cohorts: Iterable[Cohort], target: str) -> pd.DataFrame:
         logger.info(f'#slides: {len(slide_df)}')
 
         # filter n/a values
-        clini_df[target] = clini_df[target].replace(' ', '')
-        clini_df = clini_df[clini_df[target].notna()]
-        for na_value in ['NA', 'NA ', 'NAN', 'N/A', 'na', 'n.a', 'N.A', 'UNKNOWN', 'x',
-                        'NotAPPLICABLE', 'NOTPERFORMED', 'NotPerformed', 'Notassigned', 'excluded',
-                        'exclide', '#NULL', 'PerformedButNotAvailable', 'x_', 'NotReported',
-                        'notreported', 'INCONCLUSIVE', 'Not Performed', 'Performed but Not Available']:
-            clini_df = clini_df[clini_df[target] != na_value]
+        clini_df[target_label] = clini_df[target_label].replace(' ', '')
+        clini_df = clini_df[clini_df[target_label].notna()]
+        for na_value in na_values:
+            clini_df = clini_df[clini_df[target_label] != na_value]
 
         logger.info(f'#slides after removing N/As: {len(clini_df)}')
 
@@ -158,6 +160,8 @@ def concat_cohorts(cohorts: Iterable[Cohort], target: str) -> pd.DataFrame:
             raise RuntimeError(f'Patient overlap between cohorts', shared)
 
         cohorts_df = pd.concat([cohorts_df, cohort_df])
+
+    logger.info(f'Slide target counts: {dict(cohort_df[target_label].value_counts())}')
 
     return cohort_df
 
