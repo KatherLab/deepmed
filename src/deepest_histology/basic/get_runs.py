@@ -26,6 +26,27 @@ def create_runs(*,
         seed: int = 0,
         valid_frac: float = .1,
         **kwargs) -> Sequence[Run]:
+    """Creates runs for a basic test-deploy procedure.
+
+    This function will generate one training run per target label.  Due to large in-patient
+    similarities in slides, only up to a fixed number of tiles will be sampled from each patient.
+    These runs will supply:
+
+    -   A training set, if `train_cohorts` is not empty. The training set will be balanced in such a
+        way that each class is represented with a number of tiles equal to that of the smallest
+        class.
+    - A testing set, if `test_cohorts` is not empty.  The testing set may be unbalanced.
+
+    Args:
+        project_dir: Path to save project data to. If there already exists a `training_set.csv.zip`
+            or `testing_set.csv.zip` in a subdirectory having the name of one of the target labels,
+            no new training/testing sets will be generated for that target.
+        train_cohorts: The cohorts to use for training.
+        test_cohorts: The cohorts to test on.
+        max_tile_num: The number of tiles to take from each patient.
+        valid_frac: The relative amount of patients which will be reserved for validation during
+            training.
+    """
 
     runs = []
 
