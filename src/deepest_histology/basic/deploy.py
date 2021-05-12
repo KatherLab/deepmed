@@ -18,7 +18,11 @@ def deploy(model: torch.nn.Module, target_label: str, test_df: pd.DataFrame, res
            model_name: str = 'resnet',
            batch_size: int = 64,
            feature_extract: bool = False,
+           device: torch.cuda._device_t = None,
            **kwargs) -> pd.DataFrame:
+
+    if device:
+        torch.cuda.set_device(device)
 
     num_classes = 2 #TODO does this matter here?
     _, input_size = initialize_model(model_name, num_classes, feature_extract=feature_extract,
@@ -41,7 +45,7 @@ def deploy(model: torch.nn.Module, target_label: str, test_df: pd.DataFrame, res
 
     criterion = nn.CrossEntropyLoss()
 
-    epoch_loss, epoch_acc, pred_list = validate_model(model, test_generator, criterion)
+    epoch_loss, epoch_acc, pred_list = validate_model(model, test_generator, criterion, device)
 
     scores = {f'{target_label}_{key}': [item[index] for item in pred_list]
               for index, key in enumerate(list(target_label_dict.keys()))}
@@ -53,7 +57,7 @@ def deploy(model: torch.nn.Module, target_label: str, test_df: pd.DataFrame, res
     return df
 
 
-def validate_model(model, dataloaders, criterion):
+def validate_model(model, dataloaders, criterion, device):
     phase = 'test'
 
     model.eval()   # Set model to evaluate mode
@@ -62,7 +66,6 @@ def validate_model(model, dataloaders, criterion):
     running_corrects = 0
     predList = []
 
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
 
     # Iterate over data.

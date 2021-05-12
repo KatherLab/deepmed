@@ -16,14 +16,24 @@
 | train_cohorts | Iterable[Cohort] | []      | Cohorts to use for training.    |
 | test_cohorts  | Iterable[Cohort] | []      | Cohorts to use for testing.     |
 | max_tile_num  | int              | 500     | Tiles per patient to use.       |
-| valid_frac    | float            | .1      | Amount of the training set to use for validation |
+| valid_frac    | float            | .1      | Amount of the training set to use for validation. |
 
 ### Training
 
-| Option     | Type  | Default | Description                |
-|------------|-------|---------|----------------------------|
-| max_epochs | int   | 10      | Max number of epochs to train for. (May be influenced by early stopping |
-| lr         | float | 1e-4    | The initial learning rate. |
+| Option     | Type                 | Default | Description                |
+|------------|----------------------|---------|----------------------------|
+| max_epochs | int                  | 10      | Max number of epochs to train for. (May be influenced by early stopping |
+| lr         | float                | 2e-3    | The initial learning rate. |
+| batch_size | int                  | 64      | The training batch size. |
+| patience   | int                  | 3       | Number of epochs to wait for learning rate improvement. |
+| device     | torch.cuda._device_t | None    | The device to train on, or `None` for the default device. |
+
+### Deployment
+
+| Option     | Type                 | Default | Description                |
+|------------|----------------------|---------|----------------------------|
+| batch_size | int                  | 64      | The deployment batch size. |
+| device     | torch.cuda._device_t | None    | The device to deploy on, or `None` for the default device. |
 
 ### Evaluation
 

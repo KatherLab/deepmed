@@ -19,9 +19,6 @@ from .data import DatasetLoader
 
 logger = logging.getLogger(__name__)
 
-device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu') #TODO
-
-
 @log_defaults
 def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
           model_name: str = 'resnet',
@@ -31,7 +28,11 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
           opt: str = 'adam',
           lr: float = 1e-4,
           reg: float = 1e-5,
+          device: torch.cuda._device_t = None,
           **kwargs) -> torch.nn.Module:
+
+    if device:
+        torch.cuda.set_device(device)
 
     # preprocess data to fit old code
     num_classes = train_df[target_label].nunique()
@@ -85,7 +86,7 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
         train_model_classic(
             model=model_ft, trainLoaders=traingenerator, valLoaders=valgenerator,
             criterion=criterion, optimizer=optimizer, num_epochs=max_epochs,
-            is_inception=(model_name == "inception"), results_dir=result_dir)
+            is_inception=(model_name == "inception"), results_dir=result_dir, device=device)
 
     df = pd.DataFrame(
         list(zip(train_loss_history, train_acc_history, val_loss_history, val_acc_history)),
@@ -95,7 +96,7 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
     return model
 
 
-def train_model_classic(model, trainLoaders, valLoaders=[], criterion=None, optimizer=None,
+def train_model_classic(model, trainLoaders, device, valLoaders=[], criterion=None, optimizer=None,
                         num_epochs=25, is_inception=False, results_dir=''):
 
     since = time.time()
