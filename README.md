@@ -23,7 +23,7 @@
 
 | Option     | Type                 | Default | Description                |
 |------------|----------------------|---------|----------------------------|
-| max_epochs | int                  | 10      | Max number of epochs to train for. (May be influenced by early stopping |
+| max_epochs | int                  | 10      | Max number of epochs to train for. (May be influenced by early stopping) |
 | lr         | float                | 2e-3    | The initial learning rate. |
 | batch_size | int                  | 64      | The training batch size. |
 | patience   | int                  | 3       | Number of epochs to wait for learning rate improvement. |
