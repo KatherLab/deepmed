@@ -33,7 +33,7 @@ def create_runs(*,
         logger.info(f'For target {target_label}:')
 
         # training set
-        if (training_set_path := project_dir/target_label/'training_set.csv').exists():
+        if (training_set_path := project_dir/target_label/'training_set.csv.zip').exists():
             # load old training set if it exists
             logger.warning(f'{training_set_path} already exists, using old training set!')
             train_df = pd.read_csv(training_set_path)
@@ -62,7 +62,7 @@ def create_runs(*,
             train_df = None
 
         # test set
-        if (testing_set_path := project_dir/target_label/'testing_set.csv').exists():
+        if (testing_set_path := project_dir/target_label/'testing_set.csv.zip').exists():
             # load old testing set if it exists
             logger.warning(f'{testing_set_path} already exists, using old testing set!')
             test_df = pd.read_csv(testing_set_path)
