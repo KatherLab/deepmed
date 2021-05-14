@@ -73,12 +73,14 @@ def create_runs(*,
             tiles_df = get_tiles(cohorts_df=cohorts_df, max_tile_num=max_tile_num,
                                 target=target_label, seed=seed)
 
+            logger.info(
+                f'Training tiles: {dict(tiles_df[~tiles_df.is_valid][target_label].value_counts())}')
+            logger.info(
+                f'Validation tiles: {dict(tiles_df[tiles_df.is_valid][target_label].value_counts())}')
             valid_df = balance_classes(tiles_df=tiles_df[tiles_df.is_valid], target=target_label)
             train_df = balance_classes(tiles_df=tiles_df[~tiles_df.is_valid], target=target_label)
-            logger.info(f'{len(train_df)} training tiles: '
-                        f'{dict(train_df[target_label].value_counts())}')
-            logger.info(f'{len(valid_df)} validation tiles: '
-                        f'{dict(valid_df[target_label].value_counts())}')
+            logger.info(f'Training tiles after balancing: {len(train_df)}')
+            logger.info(f'Validation tiles after balancing: {len(valid_df)}')
 
             train_df = pd.concat([train_df, valid_df])
         else:
@@ -119,7 +121,7 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
     cohort_dfs: List[pd.DataFrame] = []
 
     for cohort in cohorts:
-        logger.info(f'For cohort {cohort}')
+        logger.info(f'For cohort {cohort.root_dir}')
         clini_path, slide_path, tile_dir = cohort.clini_table, cohort.slide_table, cohort.tile_dir
 
         clini_df = (pd.read_csv(clini_path) if clini_path.suffix == '.csv'
@@ -188,7 +190,6 @@ def get_tiles(cohorts_df: pd.DataFrame, max_tile_num: int, target: str, seed: in
 
 
 def balance_classes(tiles_df: pd.DataFrame, target: str) -> pd.DataFrame:
-    logger.info(str(dict(tiles_df[target].value_counts())))
     smallest_class_count = min(tiles_df[target].value_counts())
     for label in tiles_df[target].unique():
         tiles_with_label = tiles_df[tiles_df[target] == label]
