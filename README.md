@@ -17,6 +17,7 @@
 | test_cohorts  | Iterable[Cohort] | []      | Cohorts to use for testing.     |
 | max_tile_num  | int              | 500     | Tiles per patient to use.       |
 | valid_frac    | float            | .1      | Amount of the training set to use for validation. |
+| n_bins        | int              | 2       | Number of bins to discretize continuous values into. |
 | na_values     | Iterable[str]    | []      | Values to exclude in the train / test sets. |
 
 ### Training
@@ -53,6 +54,7 @@
 | cohorts       | Iterable[Cohort] | []      | Cohorts to use for cross-validation. |
 | max_tile_num  | int              | 500     | Tiles per patient to use. |
 | valid_frac    | float            | .1      | Amount of the training set to use for validation. |
+| n_bins        | int              | 2       | Number of bins to discretize continuous values into. |
 | na_values     | Iterable[str]    | []      | Values to exclude in the train / test sets. |
 
 ### Training

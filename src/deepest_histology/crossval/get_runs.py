@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from ..experiment import Run
 from ..config import Cohort
-from ..basic.get_runs import concat_cohorts, get_tiles, balance_classes
+from ..basic.get_runs import concat_cohorts, get_tiles, balance_classes, discretize
 
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,7 @@ def create_runs(*,
         folds: int = 3,
         seed: int = 0,
         valid_frac: float = .1,
+        n_bins: int = 2,
         na_values: Iterable[Any] = [],
         **kwargs) -> Sequence[Run]:
 
@@ -51,6 +52,14 @@ def create_runs(*,
             assert cohorts, 'No old training and testing sets found and no cohorts given!'
             cohorts_df = concat_cohorts(
                 cohorts=cohorts, target_label=target_label, na_values=na_values)
+                
+            # discretize values if necessary
+            if pd.api.types.is_numeric_dtype(cohorts_df[target_label]) and \
+                    cohorts_df[target_label].nunique() > 10:
+                cohorts_df[target_label] = discretize(cohorts_df[target_label], n_bins=n_bins)
+                
+            logger.info(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
+            
             folded_df = create_folds(cohorts_df=cohorts_df, target_label=target_label, folds=folds,
                                     valid_frac=valid_frac, seed=seed)
             logger.info(f'Searching for tiles')
