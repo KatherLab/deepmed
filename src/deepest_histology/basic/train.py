@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from fastai.vision.all import (
     Optimizer, Adam, Learner, DataBlock, ImageBlock, CategoryBlock, ColReader, ColSplitter, Resize,
-    resnet18, cnn_learner, BalancedAccuracy, SaveModelCallback, EarlyStoppingCallback, CSVLogger)
+    resnet18, cnn_learner, RocAucBinary, SaveModelCallback, EarlyStoppingCallback, CSVLogger)
 
 from ..utils import log_defaults
 
@@ -29,7 +29,7 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
           image_size: int = 224,
           max_epochs: int = 10,
           opt: Optimizer = Adam,
-          base_lr: float = 2e-3,
+          lr: float = 2e-3,
           patience: int = 3,
           num_workers: int = 0,
           device: torch.cuda._device_t = None,
@@ -49,7 +49,7 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
         dls, resnet18, path=result_dir, metrics=[RocAucBinary()])
 
     learn.fine_tune(epochs=max_epochs,
-                    base_lr=base_lr,
+                    base_lr=lr,
                     cbs=[SaveModelCallback(monitor='valid_loss'),
                          SaveModelCallback(every_epoch=True),
                          EarlyStoppingCallback(monitor='valid_loss', min_delta=0.01,

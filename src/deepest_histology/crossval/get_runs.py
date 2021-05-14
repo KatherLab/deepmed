@@ -59,6 +59,8 @@ def create_runs(*,
 
             for fold in sorted(folded_df.fold.unique()):
                 logger.info(f'For fold {fold}:')
+                logger.info(f'Training tiles: {dict(tiles_df[(tiles_df.fold != fold) & ~tiles_df.is_valid][target_label].value_counts())}')
+                logger.info(f'Validation tiles: {dict(tiles_df[(tiles_df.fold != fold) & ~tiles_df.is_valid][target_label].value_counts())}')
                 train_df = balance_classes(
                     tiles_df=tiles_df[(tiles_df.fold != fold) & ~tiles_df.is_valid],
                     target=target_label)
