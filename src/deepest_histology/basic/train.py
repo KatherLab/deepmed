@@ -46,7 +46,7 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
     dls = dblock.dataloaders(train_df, bs=batch_size, num_workers=num_workers)
 
     learn = cnn_learner(
-        dls, resnet18, path=result_dir, metrics=[RocAucBinary()])
+        dls, resnet18, path=result_dir, metrics=[RocAucBinary()], arch=arch, opt_func=opt)
 
     learn.fine_tune(epochs=max_epochs,
                     base_lr=base_lr,
