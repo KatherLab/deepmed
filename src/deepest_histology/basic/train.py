@@ -29,7 +29,7 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
           image_size: int = 224,
           max_epochs: int = 10,
           opt: Optimizer = Adam,
-          base_lr: float = 2e-3,
+          lr: float = 2e-3,
           patience: int = 3,
           num_workers: int = 0,
           device: torch.cuda._device_t = None,
@@ -46,13 +46,13 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
     dls = dblock.dataloaders(train_df, bs=batch_size, num_workers=num_workers)
 
     learn = cnn_learner(
-        dls, resnet18, path=result_dir, metrics=[RocAucBinary()], arch=arch, opt_func=opt)
+        dls, resnet18, path=result_dir, metrics=[BalancedAccuracy()], arch=arch, opt_func=opt)
 
     learn.fine_tune(epochs=max_epochs,
-                    base_lr=base_lr,
-                    cbs=[SaveModelCallback(monitor='valid_loss'),
+                    base_lr=lr,
+                    cbs=[SaveModelCallback(monitor='balanced_accuracy_score'),
                          SaveModelCallback(every_epoch=True),
-                         EarlyStoppingCallback(monitor='valid_loss', min_delta=0.01,
+                         EarlyStoppingCallback(monitor='balanced_accuracy_score', min_delta=0.01,
                                                patience=patience),
                          CSVLogger()])
     learn.export()
