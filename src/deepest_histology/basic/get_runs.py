@@ -2,10 +2,12 @@ import random
 import logging
 from typing import Iterable, Sequence, List, Optional, Callable, Any
 from pathlib import Path
+from numbers import Number
 
 import torch
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from sklearn import preprocessing
 from tqdm import tqdm
 
 from ..experiment import Run
@@ -25,6 +27,7 @@ def create_runs(*,
         max_tile_num: int = 500,
         seed: int = 0,
         valid_frac: float = .1,
+        n_bins: int = 2,
         na_values: Iterable[Any] = [],
         **kwargs) -> Sequence[Run]:
     """Creates runs for a basic test-deploy procedure.
@@ -38,6 +41,8 @@ def create_runs(*,
         class.
     - A testing set, if `test_cohorts` is not empty.  The testing set may be unbalanced.
 
+    If the target is continuous, it will be discretized.
+
     Args:
         project_dir: Path to save project data to. If there already exists a `training_set.csv.zip`
             or `testing_set.csv.zip` in a subdirectory having the name of one of the target labels,
@@ -47,6 +52,7 @@ def create_runs(*,
         max_tile_num: The number of tiles to take from each patient.
         valid_frac: The relative amount of patients which will be reserved for validation during
             training.
+        n_bins: Number of bins to discretize continuous values into.
     """
 
     runs = []
@@ -63,6 +69,15 @@ def create_runs(*,
             cohorts_df = concat_cohorts(
                 cohorts=train_cohorts, target_label=target_label, na_values=na_values)
 
+            # discretize values if necessary
+            if pd.api.types.is_numeric_dtype(cohorts_df[target_label]) and \
+                    cohorts_df[target_label].nunique() > 10:
+                logger.info(f'Discretizing {target_label}')
+                cohorts_df[target_label] = discretize(cohorts_df[target_label], n_bins=n_bins)
+                
+            logger.info(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
+
+
             # split off validation set
             patients = cohorts_df.groupby('PATIENT')[target_label].first()
             _, valid_patients = train_test_split(
@@ -74,9 +89,9 @@ def create_runs(*,
                                 target=target_label, seed=seed)
 
             logger.info(
-                f'Training tiles: {dict(tiles_df[~tiles_df.is_valid][target].value_counts())}')
+                f'Training tiles: {dict(tiles_df[~tiles_df.is_valid][target_label].value_counts())}')
             logger.info(
-                f'Validation tiles: {dict(tiles_df[tiles_df.is_valid][target].value_counts())}')
+                f'Validation tiles: {dict(tiles_df[tiles_df.is_valid][target_label].value_counts())}')
             valid_df = balance_classes(tiles_df=tiles_df[tiles_df.is_valid], target=target_label)
             train_df = balance_classes(tiles_df=tiles_df[~tiles_df.is_valid], target=target_label)
             logger.info(f'Training tiles after balancing: {len(train_df)}')
@@ -108,6 +123,20 @@ def create_runs(*,
                         test_df=test_df))
 
     return runs
+
+
+def discretize(xs: Iterable[Number], n_bins: int) -> Sequence[str]:
+    """Returns a discretized version of a Sequence of continuous values."""
+    unsqueezed = torch.tensor(xs).reshape(-1, 1)
+    est = preprocessing.KBinsDiscretizer(n_bins=n_bins, encode='ordinal').fit(unsqueezed)
+    labels = [f'[-inf,{est.bin_edges_[0][1]})', # label for smallest class
+                # labels for intermediate classes
+                *(f'[{lower},{upper})'
+                for lower, upper in zip(est.bin_edges_[0][1:], est.bin_edges_[0][2:-1])),
+                f'[{est.bin_edges_[0][-2]}, inf)'] # label for largest class
+    label_map = dict(enumerate(labels))
+    discretized = est.transform(unsqueezed).reshape(-1).astype(int)
+    return list(map(label_map.get, discretized)) # type: ignore
 
 
 def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iterable[Any]) \
@@ -162,8 +191,6 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
             raise RuntimeError(f'Patient overlap between cohorts', shared)
 
         cohorts_df = pd.concat([cohorts_df, cohort_df])
-
-    logger.info(f'Slide target counts: {dict(cohort_df[target_label].value_counts())}')
 
     return cohort_df
 
