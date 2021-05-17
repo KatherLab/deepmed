@@ -46,13 +46,13 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
     dls = dblock.dataloaders(train_df, bs=batch_size, num_workers=num_workers)
 
     learn = cnn_learner(
-        dls, resnet18, path=result_dir, metrics=[BalancedAccuracy()])
+        dls, arch, path=result_dir, metrics=[BalancedAccuracy()])
 
     learn.fine_tune(epochs=max_epochs,
                     base_lr=lr,
                     cbs=[SaveModelCallback(monitor='balanced_accuracy_score'),
                          SaveModelCallback(every_epoch=True),
-                         EarlyStoppingCallback(monitor='balanced_accuracy_score', min_delta=0.01,
+                         EarlyStoppingCallback(monitor='balanced_accuracy_score', min_delta=0.001,
                                                patience=patience),
                          CSVLogger()])
     learn.export()
