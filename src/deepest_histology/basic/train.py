@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from fastai.vision.all import (
     Optimizer, Adam, Learner, DataBlock, ImageBlock, CategoryBlock, ColReader, ColSplitter, Resize,
-    resnet18, cnn_learner, RocAucBinary, SaveModelCallback, EarlyStoppingCallback, CSVLogger)
+    resnet18, cnn_learner, BalancedAccuracy, SaveModelCallback, EarlyStoppingCallback, CSVLogger)
 
 from ..utils import log_defaults
 
@@ -46,13 +46,13 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
     dls = dblock.dataloaders(train_df, bs=batch_size, num_workers=num_workers)
 
     learn = cnn_learner(
-        dls, resnet18, path=result_dir, metrics=[RocAucBinary()])
+        dls, resnet18, path=result_dir, metrics=[BalancedAccuracy()])
 
     learn.fine_tune(epochs=max_epochs,
                     base_lr=lr,
-                    cbs=[SaveModelCallback(monitor='valid_loss'),
+                    cbs=[SaveModelCallback(monitor='balanced_accuracy_score'),
                          SaveModelCallback(every_epoch=True),
-                         EarlyStoppingCallback(monitor='valid_loss', min_delta=0.01,
+                         EarlyStoppingCallback(monitor='balanced_accuracy_score', min_delta=0.01,
                                                patience=patience),
                          CSVLogger()])
     learn.export()
