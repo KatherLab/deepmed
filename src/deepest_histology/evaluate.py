@@ -3,6 +3,7 @@ from typing import Iterable, Callable, Sequence, Any, Mapping
 from pathlib import Path
 
 import pandas as pd
+from PIL import Image
 
 from .basic.evaluate import Evaluator
 
@@ -67,13 +68,28 @@ def auroc(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, **kwargs
     }
 
 
-def top_tiles(target_label: str, preds_df: pd.DataFrame, result_dir: Path,
-              top_n: int = 5, **kwargs) -> None:
-    for class_ in preds_df[target_label].unique():
-        save_dir = result_dir/'top_tiles'/class_
-        save_dir.mkdir(parents=True)
-        for tile_path in preds_df.nlargest(n=top_n, columns=target_label).tile_path:
-            shutil.copy(src=tile_path, dst=save_dir)
+def top_tiles(
+        target_label: str, preds_df: pd.DataFrame, result_dir: Path,
+        n_patients: int = 4, n_tiles: int = 4, patient_label: str = 'PATIENT', **kwargs) -> None:
+    """Generates a grid of the best scoring tiles for each class.
+    
+    The function outputs a `n_patients` × `n_tiles` grid of tiles, where each row contains the
+    `n_tiles` highest scoring tiles for one of the `n_patients` best-classified patients.
+    """
+    for class_ in preds_df[f'{target_label}_pred'].unique():
+        plt.figure(figsize=(n_patients, n_tiles), dpi=300)
+        # get patients with the best overall ratings for the label
+        patients = (preds_df.groupby(patient_label)[target_label]
+                            .agg(lambda x: sum(x == class_) / len(x)).nlargest(n_patients))
+        for i, patient in enumerate(patients.keys()):
+            # get the best tile for that patient
+            tiles = (preds_df[preds_df[patient_label] == patient]
+                        .nlargest(n=n_tiles, columns=f'{target_label}_{class_}').tile_path)
+            for j, tile in enumerate(tiles):
+                plt.subplot(n_patients, n_tiles, i*n_tiles + j+1)
+                plt.axis('off')
+                plt.imshow(Image.open(tile))
+        plt.savefig(result_dir/f'{target_label}_{class_}_top_tiles.svg', bbox_inches='tight')
 
 
 import numpy as np
