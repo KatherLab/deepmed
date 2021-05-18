@@ -4,6 +4,7 @@ from pathlib import Path
 
 import scipy
 import pandas as pd
+import scipy.stats as st
 
 from ..basic.evaluate import Evaluator
 
@@ -59,12 +60,11 @@ def evaluate(
         # accumulate simple statistics over folds
         stats_df = pd.concat(subset_stats_dfs)
         n = len(stats_df)
-        mean, sem = stats_df.mean(), stats_df.sem()
-        confidence = .95
-        h = sem * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
+        mean = stats_df.mean()
+        l, h = st.t.interval(alpha=.95, df=n-1, loc=mean, scale=stats_df.sem())
 
         stats_df.loc['mean'] = mean
-        stats_df.loc['95% conf'] = h
+        stats_df.loc['95% conf'] = (h - l) / 2
         stats_df.to_csv(target_dir/'results.csv')
 
         subsets_df = pd.concat(subset_dfs)
