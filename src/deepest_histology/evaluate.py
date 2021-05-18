@@ -99,12 +99,9 @@ from sklearn import svm, datasets
 from sklearn.metrics import auc
 from sklearn.metrics import roc_curve, auc, RocCurveDisplay
 from sklearn.model_selection import StratifiedKFold
-from scipy.stats import norm
+import scipy.stats as st
 
 def plot_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: float = 0.95):
-    # see <https://en.wikipedia.org/wiki/Confidence_interval#Basic_steps>
-    z_star = -norm.ppf((1-conf)/2)  #TODO check: is this right? Confidence intervals are confusing
-
     # gracefully stolen from <https://scikit-learn.org/stable/auto_examples/model_selection/plot_roc_crossval.html>
     tprs = []
     aucs = []
@@ -131,27 +128,24 @@ def plot_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: floa
 
     mean_tpr = np.mean(tprs, axis=0)
     mean_tpr[-1] = 1.0  # type: ignore
-    auc_mean = auc(mean_fpr, mean_tpr)
-    auc_dev = z_star * np.std(aucs)
-    ax.plot(mean_fpr, mean_tpr, color='b',
-            label=f'Mean ROC (AUC = {auc_mean:0.2f} $\\pm$ {auc_dev:0.2f})',
-            lw=2, alpha=.8)
 
-    dev_tpr = z_star * np.std(tprs, axis=0)
-    tprs_upper = np.minimum(mean_tpr + dev_tpr, 1)
-    tprs_lower = np.maximum(mean_tpr - dev_tpr, 0)
-    ax.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,
-                    label=f'{conf*100:g}% Confidence Interval')
+    # calculate mean and conf intervals
+    auc_mean = np.mean(aucs)
+    auc_conf_limits = st.t.interval(alpha=conf, df=len(aucs)-1, loc=np.mean(aucs), scale=st.sem(aucs))
+    auc_conf = (auc_conf_limits[1]-auc_conf_limits[0])/2
+
+    ax.plot(mean_fpr, mean_tpr, color='b',
+            label=f'Mean ROC (AUC = {auc_mean:0.2f} $\\pm$ {auc_conf:0.2f})',
+            lw=2, alpha=.8)
 
     ax.set(xlim=[-0.05, 1.05], ylim=[-0.05, 1.05],
            title=f'{target_label}: {pos_label} ROC')
     ax.legend(loc="lower right")
     
-    return auc_mean, auc_dev
+    return auc_mean, auc_conf
 
 
-def roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path, **_kwargs) \
-        -> None:
+def roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path, **_kwargs) -> None:
     y_true = preds_df[target_label]
     for class_ in y_true.unique():
         fig, ax = plt.subplots()
