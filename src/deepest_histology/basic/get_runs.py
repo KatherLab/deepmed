@@ -153,10 +153,10 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
         logger.info(f'For cohort {cohort.root_dir}')
         clini_path, slide_path, tile_dir = cohort.clini_table, cohort.slide_table, cohort.tile_dir
 
-        clini_df = (pd.read_csv(clini_path) if clini_path.suffix == '.csv'
-                    else pd.read_excel(clini_path))
-        slide_df = (pd.read_csv(slide_path) if slide_path.suffix == '.csv'
-                    else pd.read_excel(slide_path))
+        clini_df = (pd.read_csv(clini_path, dtype={'PATIENT': str}) if clini_path.suffix == '.csv'
+                    else pd.read_excel(clini_path, dtype={'PATIENT': str}))
+        slide_df = (pd.read_csv(slide_path, dtype=str) if slide_path.suffix == '.csv'
+                    else pd.read_excel(slide_path, dtype=str))
         logger.info(f'#patients: {len(clini_df)}')
         logger.info(f'#slides: {len(slide_df)}')
 

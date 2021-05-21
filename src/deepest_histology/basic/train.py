@@ -1,9 +1,6 @@
 from typing import Callable
-import time
 import logging
-import os
 from pathlib import Path
-from typing import Optional
 
 import torch
 import pandas as pd
@@ -15,7 +12,7 @@ from tqdm import tqdm
 from fastai.vision.all import (
     Optimizer, Adam, Learner, DataBlock, ImageBlock, CategoryBlock, ColReader, ColSplitter,
     resnet18, cnn_learner, BalancedAccuracy, SaveModelCallback, EarlyStoppingCallback, CSVLogger,
-    aug_transforms)
+    CrossEntropyLossFlat, aug_transforms)
 
 from ..utils import log_defaults
 
@@ -47,11 +44,26 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
                        batch_tfms=tfms)
     dls = dblock.dataloaders(train_df, bs=batch_size, num_workers=num_workers)
 
-    learn = cnn_learner(
-        dls, arch, path=result_dir, metrics=[BalancedAccuracy()], opt_func=opt)
+    target_col_idx = train_df[~train_df.is_valid].columns.get_loc(target_label)
 
-    learn.fine_tune(epochs=max_epochs,
-                    base_lr=lr,
+    logger.debug(f'Class counts in training set: {train_df[~train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
+    logger.debug(f'Class counts in validation set: {train_df[train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
+
+    counts = train_df[~train_df.is_valid].iloc[:, target_col_idx].value_counts()
+
+    counts = torch.tensor([counts[k] for k in dls.vocab])
+    weights = 1 - (counts / sum(counts))
+
+    logger.info(f'{dls.vocab = }, {weights = }')
+
+    learn = cnn_learner(
+        dls, arch,
+        path=result_dir,
+        loss_func=CrossEntropyLossFlat(weight=weights.cuda()),
+        metrics=[BalancedAccuracy()],
+        opt_func=opt)
+
+    learn.fine_tune(epochs=max_epochs, base_lr=lr,
                     cbs=[SaveModelCallback(monitor='balanced_accuracy_score'),
                          SaveModelCallback(every_epoch=True),
                          EarlyStoppingCallback(monitor='balanced_accuracy_score', min_delta=0.001,
