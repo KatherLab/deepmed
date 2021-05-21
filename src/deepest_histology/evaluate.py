@@ -68,6 +68,17 @@ def auroc(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, **kwargs
     }
 
 
+def count(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, **kwargs) \
+        -> Mapping[str, float]:
+    """Calculates the number of training instances, both in total and per class."""
+    return {f'{target_label}_count': len(preds_df), # total
+            **{ # per class
+                f'{target_label}_{class_}_count': len(preds_df[preds_df[target_label]==class_])
+                for class_ in preds_df[target_label].unique()
+            }
+           }
+
+
 def top_tiles(
         target_label: str, preds_df: pd.DataFrame, result_dir: Path,
         n_patients: int = 4, n_tiles: int = 4, patient_label: str = 'PATIENT', **kwargs) -> None:
