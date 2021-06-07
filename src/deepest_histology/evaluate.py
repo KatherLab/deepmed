@@ -161,4 +161,4 @@ def roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path, **_kwargs) 
     for class_ in y_true.unique():
         fig, ax = plt.subplots()
         _, _ = plot_roc(preds_df, target_label, class_, ax=ax, conf=.95)
-        fig.savefig(result_dir/f'roc_{target_label}_{class_}.png')
+        fig.savefig(result_dir/f'roc_{target_label}_{class_}.svg')
