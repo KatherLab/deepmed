@@ -41,29 +41,32 @@ def SubGrouped(evaluate: Evaluator, by: str):
     return sub_grouped
 
 
-def f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, min_tpr: Optional[int] = None,
-        **kwargs) -> Mapping[str, float]:
+def F1(min_tpr: Optional[float] = None) -> Callable[..., Mapping[str, float]]:
     """Calculates the F1 score.
     
     If min_tpr is not given, a threshold which maximizes the F1 score is selected; otherwise the
     threshold which guarantees a tpr of at least min_tpr is used.
     """
-    y_true = preds_df[target_label]
-    y_pred = preds_df[f'{target_label}_pred']
+    def f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, **kwargs) \
+            -> Mapping[str, float]:
+        y_true = preds_df[target_label]
+        y_pred = preds_df[f'{target_label}_pred']
 
-    stats = {}
-    for class_ in y_true.unique():
-        thresh = get_thresh(target_label, preds_df, class_, min_tpr=min_tpr)
+        stats = {}
+        for class_ in y_true.unique():
+            thresh = get_thresh(target_label, preds_df, class_, min_tpr=min_tpr)
 
-        stats[f'{target_label}_{class_}_f1_{min_tpr or "opt"}'] = \
-            skm.f1_score(y_true == class_,
-                        preds_df[f'{target_label}_{class_}'] >= thresh)
+            stats[f'{target_label}_{class_}_f1_{min_tpr or "opt"}'] = \
+                skm.f1_score(y_true == class_,
+                             preds_df[f'{target_label}_{class_}'] >= thresh)
 
-    return stats
+        return stats
+
+    return f1
 
 
 def get_thresh(target_label: str, preds_df: pd.DataFrame, pos_label: str,
-        min_tpr: Optional[int] = None) -> float:
+        min_tpr: Optional[float] = None) -> float:
     """Calculates a classification threshold for a class.
     
     If `min_tpr` is given, the lowest threshold to guarantee the requested tpr is returned.  Else, 
