@@ -65,25 +65,33 @@ def F1(min_tpr: Optional[float] = None) -> Callable[..., Mapping[str, float]]:
     return f1
 
 
-def ConfusionMatrix(min_tpr: Optional[float] = None):
+def ConfusionMatrix(min_tpr: Optional[float] = None) -> Callable[..., None]:
     def confusion_matrix(target_label: str, preds_df: pd.DataFrame, result_dir: Path, **kwargs) \
             -> None:
-        assert len(classes := preds_df[target_label].unique()) == 2, \
-            "Confusion matrices are currently only supported for binary targets!"
-        for class_ in classes:
-            thresh = get_thresh(target_label, preds_df, pos_label=class_, min_tpr=min_tpr)
-            y_true = preds_df[target_label] == class_
-            y_pred = preds_df[f'{target_label}_{class_}'] >= thresh
-            cm = skm.confusion_matrix(y_true, y_pred)
-            disp = skm.ConfusionMatrixDisplay(
-                confusion_matrix=cm,
-                # FIXME this next line is horrible to read
-                display_labels=(classes if class_ == classes[1] else list(reversed(classes))))
+        classes = preds_df[target_label].unique()
+        if len(classes) == 2:
+            for class_ in classes:
+                thresh = get_thresh(target_label, preds_df, pos_label=class_, min_tpr=min_tpr)
+                y_true = preds_df[target_label] == class_
+                y_pred = preds_df[f'{target_label}_{class_}'] >= thresh
+                cm = skm.confusion_matrix(y_true, y_pred)
+                disp = skm.ConfusionMatrixDisplay(
+                    confusion_matrix=cm,
+                    # FIXME this next line is horrible to read
+                    display_labels=(classes if class_ == classes[1] else list(reversed(classes))))
+                disp.plot()
+                plt.title(
+                    f'{target_label} ' +
+                    (f"({class_} TPR ≥ {min_tpr})" if min_tpr else f"(Optimal {class_} F1 Score)"))
+                plt.savefig(result_dir/
+                            f'conf_matrix_{target_label}_{class_}_{min_tpr or "opt"}.svg')
+        else:
+            cm = skm.confusion_matrix(
+                preds_df[target_label] == class_, preds_df[f'{target_label}_pred'], labels=classes)
+            disp = skm.ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
             disp.plot()
-            plt.title(
-                f'{target_label} ' +
-                (f"({class_} TPR ≥ {min_tpr})" if min_tpr else f"(Optimal {class_} F1 Score)"))
-            plt.savefig(result_dir/f'conf_matrix_{target_label}_{class_}_{min_tpr or "opt"}.svg')
+            plt.title(f'{target_label}')
+            plt.savefig(result_dir/f'conf_matrix_{target_label}.svg')
     
     return confusion_matrix
 
