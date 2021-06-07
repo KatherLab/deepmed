@@ -1,5 +1,5 @@
 import shutil
-from typing import Iterable, Callable, Sequence, Any, Mapping
+from typing import Iterable, Callable, Sequence, Any, Mapping, Optional
 from pathlib import Path
 
 import pandas as pd
@@ -41,28 +41,45 @@ def SubGrouped(evaluate: Evaluator, by: str):
     return sub_grouped
 
 
-def f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, **kwargs) \
-        -> Mapping[str, float]:
+def f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, min_tpr: Optional[int] = None,
+        **kwargs) -> Mapping[str, float]:
+    """Calculates the F1 score.
+    
+    If min_tpr is not given, a threshold which maximizes the F1 score is selected; otherwise the
+    threshold which guarantees a tpr of at least min_tpr is used.
+    """
     y_true = preds_df[target_label]
     y_pred = preds_df[f'{target_label}_pred']
 
     stats = {}
     for class_ in y_true.unique():
-        thresh = get_best_f1_thresh(target_label, preds_df, class_)
-        stats[f'{target_label}_{class_}_f1'] = \
+        thresh = get_thresh(target_label, preds_df, class_, min_tpr=min_tpr)
+
+        stats[f'{target_label}_{class_}_f1_{min_tpr or "opt"}'] = \
             skm.f1_score(y_true == class_,
                         preds_df[f'{target_label}_{class_}'] >= thresh)
 
     return stats
 
 
-def get_best_f1_thresh(target_label: str, preds_df: pd.DataFrame, pos_label: str) -> float:
-    _1, _2, thresh = skm.roc_curve(
+def get_thresh(target_label: str, preds_df: pd.DataFrame, pos_label: str,
+        min_tpr: Optional[int] = None) -> float:
+    """Calculates a classification threshold for a class.
+    
+    If `min_tpr` is given, the lowest threshold to guarantee the requested tpr is returned.  Else, 
+    the threshold optimizing the F1 score will be returned.
+    """
+    fprs, tprs, threshs = skm.roc_curve(
         (preds_df[target_label] == pos_label)*1., preds_df[f'{target_label}_{pos_label}'])
-    return max(
-        thresh,
-        key=lambda t: skm.f1_score(
-            preds_df[target_label] == pos_label, preds_df[f'{target_label}_{pos_label}'] > t))
+
+    if min_tpr:
+        return threshs[next(i for i, tpr in enumerate(tprs) if tpr >= min_tpr)]
+
+    else:
+        return max(
+            threshs,
+            key=lambda t: skm.f1_score(
+                preds_df[target_label] == pos_label, preds_df[f'{target_label}_{pos_label}'] > t))
 
 
 def auroc(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, **kwargs) \
