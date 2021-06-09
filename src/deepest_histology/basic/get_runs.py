@@ -155,13 +155,17 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
 
         clini_df = (pd.read_csv(clini_path, dtype={'PATIENT': str}) if clini_path.suffix == '.csv'
                     else pd.read_excel(clini_path, dtype={'PATIENT': str}))
+
+        if target_label not in clini_df:
+            logger.warning(f'No column {target_label} in {clini_path}! Skipping cohort...')
+            continue
+
         slide_df = (pd.read_csv(slide_path, dtype=str) if slide_path.suffix == '.csv'
                     else pd.read_excel(slide_path, dtype=str))
         logger.info(f'#patients: {len(clini_df)}')
         logger.info(f'#slides: {len(slide_df)}')
 
         # filter n/a values
-        clini_df[target_label] = clini_df[target_label].replace(' ', '')
         clini_df = clini_df[clini_df[target_label].notna()]
         for na_value in na_values:
             clini_df = clini_df[clini_df[target_label] != na_value]
