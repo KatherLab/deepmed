@@ -70,11 +70,14 @@ def create_runs(*,
                 cohorts=train_cohorts, target_label=target_label, na_values=na_values)
 
             # discretize values if necessary
-            if pd.api.types.is_numeric_dtype(cohorts_df[target_label]) and \
-                    cohorts_df[target_label].nunique() > 10:
-                logger.info(f'Discretizing {target_label}')
-                cohorts_df[target_label] = discretize(cohorts_df[target_label], n_bins=n_bins)
-                
+            if cohorts_df[target_label].nunique() > 10:
+                try:
+                    cohorts_df[target_label] = cohorts_df[target_label].map(float)
+                    logger.info(f'Discretizing {target_label}')
+                    cohorts_df[target_label] = discretize(cohorts_df[target_label], n_bins=n_bins)
+                except ValueError:
+                    pass
+
             logger.info(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
 
 
@@ -153,8 +156,8 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
         logger.info(f'For cohort {cohort.root_dir}')
         clini_path, slide_path, tile_dir = cohort.clini_table, cohort.slide_table, cohort.tile_dir
 
-        clini_df = (pd.read_csv(clini_path, dtype={'PATIENT': str}) if clini_path.suffix == '.csv'
-                    else pd.read_excel(clini_path, dtype={'PATIENT': str}))
+        clini_df = (pd.read_csv(clini_path, dtype=str) if clini_path.suffix == '.csv'
+                    else pd.read_excel(clini_path, dtype=str))
 
         if target_label not in clini_df:
             logger.warning(f'No column {target_label} in {clini_path}! Skipping cohort...')
