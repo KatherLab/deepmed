@@ -52,11 +52,15 @@ def create_runs(*,
             assert cohorts, 'No old training and testing sets found and no cohorts given!'
             cohorts_df = concat_cohorts(
                 cohorts=cohorts, target_label=target_label, na_values=na_values)
-                
+
             # discretize values if necessary
-            if pd.api.types.is_numeric_dtype(cohorts_df[target_label]) and \
-                    cohorts_df[target_label].nunique() > 10:
-                cohorts_df[target_label] = discretize(cohorts_df[target_label], n_bins=n_bins)
+            if cohorts_df[target_label].nunique() > 10:
+                try:
+                    cohorts_df[target_label] = cohorts_df[target_label].map(float)
+                    logger.info(f'Discretizing {target_label}')
+                    cohorts_df[target_label] = discretize(cohorts_df[target_label], n_bins=n_bins)
+                except ValueError:
+                    pass
                 
             logger.info(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
             
