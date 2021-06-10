@@ -29,6 +29,7 @@ def create_runs(*,
         valid_frac: float = .1,
         n_bins: int = 2,
         na_values: Iterable[Any] = [],
+        min_support: int = 10,
         **kwargs) -> Sequence[Run]:
     """Creates runs for a basic test-deploy procedure.
 
@@ -53,6 +54,9 @@ def create_runs(*,
         valid_frac: The relative amount of patients which will be reserved for validation during
             training.
         n_bins: Number of bins to discretize continuous values into.
+        na_values: Class labels to consider as N/A values.
+        min_support: Least amount of class samples required for the class to be included in
+            training. Classes with less support are dropped.
     """
 
     runs = []
@@ -77,9 +81,13 @@ def create_runs(*,
                     cohorts_df[target_label] = discretize(cohorts_df[target_label], n_bins=n_bins)
                 except ValueError:
                     pass
+            
+            # drop classes with insufficient support
+            class_counts = cohorts_df[target_label].value_counts()
+            rare_classes = (class_counts[class_counts < min_support]).index
+            cohorts_df = cohorts_df[~cohorts_df[target_label].isin(rare_classes)]
 
             logger.info(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
-
 
             # split off validation set
             patients = cohorts_df.groupby('PATIENT')[target_label].first()
