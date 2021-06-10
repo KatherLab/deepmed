@@ -3,6 +3,7 @@ import logging
 from typing import Type, Sequence, Tuple, Callable, Optional, Any, Dict, TypeVar, Union, Iterable
 from pathlib import Path
 from dataclasses import dataclass
+from multiprocessing import Pool
 
 from fastai.vision.all import Learner, load_learner
 
@@ -89,6 +90,7 @@ def do_experiment(*,
         mode: Coordinator,
         model_path: Optional[PathLike] = None,
         save_models: bool = True,
+        num_concurrent_runs: int = 4,
         **kwargs) -> None:
     """Runs an experiement.
     
@@ -99,7 +101,7 @@ def do_experiment(*,
     """
 
     project_dir = Path(project_dir)
-    project_dir.mkdir(exist_ok=True)
+    project_dir.mkdir(exist_ok=True, parents=True)
 
     # add logfile handler
     file_handler = logging.FileHandler(project_dir/'logfile')
@@ -112,32 +114,37 @@ def do_experiment(*,
     runs = mode.get(project_dir=project_dir, **kwargs)
     save_run_files_(runs)
 
-    for run in runs:
-        logger.info(f'Starting run {run.directory}')
-        
-        learn = (train_(train=mode.train, exp=run, save_models=save_models, **kwargs)
-                 if mode.train and run.train_df is not None
-                 else None)
-
-        preds_df = (deploy_(deploy=mode.deploy, learn=learn, run=run, model_path=model_path,
-                            **kwargs)
-                    if mode.deploy and run.test_df is not None
-                    else None)
+    with Pool(num_concurrent_runs) as pool:
+        ress = [pool.apply_async(do_run, args=(run, mode, save_models, model_path), kwds=kwargs) for run in runs]
+        for res in ress:
+            x = res.get()
 
     if mode.evaluate:
         logger.info('Evaluating')
         preds_df = mode.evaluate(project_dir, **kwargs)
 
+def do_run(run, mode, save_models, model_path, **kwargs):
+    logger.info(f'Starting run {run.directory}')
+
+    learn = (train_(train=mode.train, exp=run, save_models=save_models, **kwargs)
+             if mode.train and run.train_df is not None
+             else None)
+
+    preds_df = (deploy_(deploy=mode.deploy, learn=learn, run=run, model_path=model_path,
+                        **kwargs)
+                if mode.deploy and run.test_df is not None
+                else None)
 
 def save_run_files_(runs: Iterable[Run]) -> None:
-    for exp in runs:
-        exp.directory.mkdir(exist_ok=True, parents=True)
-        if exp.train_df is not None and \
-                not (training_set_path := exp.directory/'training_set.csv.zip').exists():
-            exp.train_df.to_csv(training_set_path, index=False, compression='zip')
-        if exp.test_df is not None and \
-                not (testing_set_path := exp.directory/'testing_set.csv.zip').exists():
-            exp.test_df.to_csv(testing_set_path, index=False, compression='zip')
+    for run in runs:
+        logger.info(f'Saving training/testing data for run {run.directory}...')
+        run.directory.mkdir(exist_ok=True, parents=True)
+        if run.train_df is not None and \
+                not (training_set_path := run.directory/'training_set.csv.zip').exists():
+            run.train_df.to_csv(training_set_path, index=False, compression='zip')
+        if run.test_df is not None and \
+                not (testing_set_path := run.directory/'testing_set.csv.zip').exists():
+            run.test_df.to_csv(testing_set_path, index=False, compression='zip')
 
 
 def train_(train: Trainer, exp: Run, save_models: bool, **kwargs) -> Model:

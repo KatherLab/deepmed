@@ -12,7 +12,7 @@ from fastai.vision.all import Learner
 from ..utils import log_defaults
 
 
-@log_defaults
+#@log_defaults
 def deploy(learn: Learner, target_label: str, test_df: pd.DataFrame, result_dir: Path,
            device: torch.cuda._device_t = None, **kwargs) -> pd.DataFrame:
     if device:

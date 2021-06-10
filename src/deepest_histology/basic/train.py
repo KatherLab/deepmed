@@ -20,7 +20,7 @@ from ..utils import log_defaults
 logger = logging.getLogger(__name__)
 
 
-@log_defaults
+#@log_defaults
 def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
           arch: Callable[[bool], nn.Module] = resnet18,
           batch_size: int = 64,
