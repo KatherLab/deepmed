@@ -152,13 +152,33 @@ def plot_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: floa
     ax.set(xlim=[-0.05, 1.05], ylim=[-0.05, 1.05],
            title=f'{target_label}: {pos_label} ROC')
     ax.legend(loc="lower right")
+
     
-    return auc_mean, auc_conf
+def plot_simple_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: float = 0.95):
+    # gracefully stolen from <https://scikit-learn.org/stable/auto_examples/model_selection/plot_roc_crossval.html>
+    fpr, tpr, _ = roc_curve((df[target_label] == pos_label)*1., df[f'{target_label}_{pos_label}'])
+
+    roc_auc = auc(fpr, tpr)
+    viz = RocCurveDisplay(fpr=fpr,
+                          tpr=tpr,
+                          roc_auc=roc_auc)
+    viz.plot(ax=ax)
+
+    ax.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',
+            label='Chance', alpha=.8)
+
+    ax.set(xlim=[-0.05, 1.05], ylim=[-0.05, 1.05],
+           title=f'{target_label}: {pos_label} ROC')
+    ax.legend(loc="lower right")
 
 
 def roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path, **_kwargs) -> None:
     y_true = preds_df[target_label]
     for class_ in y_true.unique():
         fig, ax = plt.subplots()
-        _, _ = plot_roc(preds_df, target_label, class_, ax=ax, conf=.95)
-        fig.savefig(result_dir/f'roc_{target_label}_{class_}.png')
+        if 'fold' in preds_df:
+            plot_roc(preds_df, target_label, class_, ax=ax, conf=.95)
+        else:
+            plot_simple_roc(preds_df, target_label, class_, ax=ax, conf=.95)
+
+        fig.savefig(result_dir/f'roc_{target_label}_{class_}.svg')

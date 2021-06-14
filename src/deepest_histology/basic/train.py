@@ -54,7 +54,7 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
     counts = torch.tensor([counts[k] for k in dls.vocab])
     weights = 1 - (counts / sum(counts))
 
-    logger.info(f'{dls.vocab = }, {weights = }')
+    logger.info(f'dls.vocab={dls.vocab}, weights = {weights }')
 
     learn = cnn_learner(
         dls, arch,
