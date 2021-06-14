@@ -26,7 +26,6 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
           batch_size: int = 64,
           max_epochs: int = 10,
           opt: Optimizer = Adam,
-          lr: float = 2e-3,
           patience: int = 3,
           num_workers: int = 0,
           device: torch.cuda._device_t = None,
@@ -54,7 +53,7 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
     counts = torch.tensor([counts[k] for k in dls.vocab])
     weights = 1 - (counts / sum(counts))
 
-    logger.info(f'dls.vocab={dls.vocab}, weights = {weights }')
+    logger.info(f'{dls.vocab = }, {weights = }')
 
     learn = cnn_learner(
         dls, arch,
@@ -63,6 +62,9 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
         metrics=[BalancedAccuracy()],
         opt_func=opt)
 
+    logger.info('Searching for best LR.')
+    lr = learn.lr_find().lr_min
+    logger.info(f'{lr = }.')
     learn.fine_tune(epochs=max_epochs, base_lr=lr,
                     cbs=[SaveModelCallback(monitor='balanced_accuracy_score'),
                          SaveModelCallback(every_epoch=True),
