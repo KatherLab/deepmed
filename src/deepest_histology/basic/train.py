@@ -11,8 +11,8 @@ from tqdm import tqdm
 
 from fastai.vision.all import (
     Optimizer, Adam, Learner, DataBlock, ImageBlock, CategoryBlock, ColReader, ColSplitter,
-    resnet18, cnn_learner, BalancedAccuracy, SaveModelCallback, EarlyStoppingCallback, CSVLogger,
-    CrossEntropyLossFlat, aug_transforms)
+    resnet18, cnn_learner, BalancedAccuracy, RocAucBinary, SaveModelCallback, EarlyStoppingCallback,
+    CSVLogger, CrossEntropyLossFlat, aug_transforms)
 
 from ..utils import log_defaults
 
@@ -31,6 +31,8 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
           device: torch.cuda._device_t = None,
           tfms: Callable = aug_transforms(
               flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224),
+          metrics: Iterable[Callable] = [BalancedAccuracy(), RocAucBinary()],
+          monitor: str = 'valid_loss',
           **kwargs) -> Learner:
 
     if device:
@@ -59,16 +61,15 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
         dls, arch,
         path=result_dir,
         loss_func=CrossEntropyLossFlat(weight=weights.cuda()),
-        metrics=[BalancedAccuracy()],
+        metrics=metrics,
         opt_func=opt)
 
     logger.info('Searching for best LR.')
     lr = learn.lr_find().lr_min
     logger.info(f'{lr = }.')
     learn.fine_tune(epochs=max_epochs, base_lr=lr,
-                    cbs=[SaveModelCallback(monitor='balanced_accuracy_score'),
-                         SaveModelCallback(every_epoch=True),
-                         EarlyStoppingCallback(monitor='balanced_accuracy_score', min_delta=0.001,
+                    cbs=[SaveModelCallback(monitor=monitor),
+                         EarlyStoppingCallback(monitor=monitor, min_delta=0.001,
                                                patience=patience),
                          CSVLogger()])
     learn.export()
