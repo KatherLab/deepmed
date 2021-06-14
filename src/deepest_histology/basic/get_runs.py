@@ -224,6 +224,7 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
 
 #TODO df types
 def get_tiles(cohorts_df: pd.DataFrame, max_tile_num: int, target: str, seed: int) -> pd.DataFrame:
+    #breakpoint()
     """Create df containing patient, tiles, other data."""
     random.seed(seed)   #FIXME doesn't work
     tiles_dfs = []
