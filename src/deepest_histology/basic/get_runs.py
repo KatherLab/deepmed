@@ -136,7 +136,7 @@ def prepare_cohorts(
         try:
             cohorts_df[target_label] = cohorts_df[target_label].map(float)
             logger.info(f'Discretizing {target_label}')
-            cohorts_df[target_label] = discretize(cohorts_df[target_label], n_bins=n_bins)
+            cohorts_df[target_label] = discretize(cohorts_df[target_label].values, n_bins=n_bins)
         except ValueError:
             pass
 
@@ -148,7 +148,7 @@ def prepare_cohorts(
     return cohorts_df
 
 
-def discretize(xs: Iterable[Number], n_bins: int) -> Sequence[str]:
+def discretize(xs: Sequence[Number], n_bins: int) -> Sequence[str]:
     """Returns a discretized version of a Sequence of continuous values."""
     unsqueezed = torch.tensor(xs).reshape(-1, 1)
     est = preprocessing.KBinsDiscretizer(n_bins=n_bins, encode='ordinal').fit(unsqueezed)
