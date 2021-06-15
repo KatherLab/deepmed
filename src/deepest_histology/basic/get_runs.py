@@ -188,13 +188,6 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
         logger.info(f'#patients: {len(clini_df)}')
         logger.info(f'#slides: {len(slide_df)}')
 
-        # filter n/a values
-        clini_df = clini_df[clini_df[target_label].notna()]
-        for na_value in na_values:
-            clini_df = clini_df[clini_df[target_label] != na_value]
-
-        logger.info(f'#slides after removing N/As: {len(clini_df)}')
-
         # strip patient ids, slide names
         clini_df['PATIENT'] = clini_df['PATIENT'].str.strip()
         slide_df['PATIENT'] = slide_df['PATIENT'].str.strip()
@@ -204,6 +197,13 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
         cohort_df = clini_df.merge(slide_df, on='PATIENT')
         cohort_df['cohort'] = cohort.root_dir.name
         logger.info(f'#slides after removing slides without patient data: {len(cohort_df)}')
+
+        # filter n/a values
+        cohort_df = cohort_df[cohort_df[target_label].notna()]
+        for na_value in na_values:
+            cohort_df = cohort_df[cohort_df[target_label] != na_value]
+
+        logger.info(f'#slides after removing N/As: {len(cohort_df)}')
 
         # only keep slides which have tiles
         cohort_df['BLOCK_DIR'] = tile_dir/cohort_df['FILENAME']
