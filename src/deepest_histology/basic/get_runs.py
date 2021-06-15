@@ -219,7 +219,7 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
 
         cohorts_df = pd.concat([cohorts_df, cohort_df])
 
-    return cohort_df
+    return cohorts_df
 
 
 #TODO df types
