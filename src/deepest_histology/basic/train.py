@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Iterable
 import logging
 from pathlib import Path
 
