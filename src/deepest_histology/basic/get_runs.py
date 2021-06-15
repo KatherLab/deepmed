@@ -70,23 +70,8 @@ def create_runs(*,
             logger.warning(f'{training_set_path} already exists, using old training set!')
             train_df = pd.read_csv(training_set_path)
         elif train_cohorts:
-            cohorts_df = concat_cohorts(
-                cohorts=train_cohorts, target_label=target_label, na_values=na_values)
-
-            # discretize values if necessary
-            if cohorts_df[target_label].nunique() > 10:
-                try:
-                    cohorts_df[target_label] = cohorts_df[target_label].map(float)
-                    logger.info(f'Discretizing {target_label}')
-                    cohorts_df[target_label] = discretize(cohorts_df[target_label], n_bins=n_bins)
-                except ValueError:
-                    pass
-            
-            # drop classes with insufficient support
-            class_counts = cohorts_df[target_label].value_counts()
-            rare_classes = (class_counts[class_counts < min_support]).index
-            cohorts_df = cohorts_df[~cohorts_df[target_label].isin(rare_classes)]
-
+            cohorts_df = prepare_cohorts(
+                train_cohorts, target_label, na_values, n_bins, min_support)
             logger.info(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
 
             # split off validation set
@@ -134,6 +119,33 @@ def create_runs(*,
                         test_df=test_df))
 
     return runs
+
+
+def prepare_cohorts(
+        cohorts: Iterable[Cohort], target_label: str, na_values: Iterable[str], n_bins: int,
+        min_support: int) -> pd.DataFrame:
+    """Preprocesses the cohorts.
+
+    Discretizes continuous targets and drops classes for which only few examples are present.
+    """
+    cohorts_df = concat_cohorts(
+        cohorts=cohorts, target_label=target_label, na_values=na_values)
+
+    # discretize values if necessary
+    if cohorts_df[target_label].nunique() > 10:
+        try:
+            cohorts_df[target_label] = cohorts_df[target_label].map(float)
+            logger.info(f'Discretizing {target_label}')
+            cohorts_df[target_label] = discretize(cohorts_df[target_label], n_bins=n_bins)
+        except ValueError:
+            pass
+
+    # drop classes with insufficient support
+    class_counts = cohorts_df[target_label].value_counts()
+    rare_classes = (class_counts[class_counts < min_support]).index
+    cohorts_df = cohorts_df[~cohorts_df[target_label].isin(rare_classes)]
+
+    return cohorts_df
 
 
 def discretize(xs: Iterable[Number], n_bins: int) -> Sequence[str]:
@@ -212,6 +224,7 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
 
 #TODO df types
 def get_tiles(cohorts_df: pd.DataFrame, max_tile_num: int, target: str, seed: int) -> pd.DataFrame:
+    #breakpoint()
     """Create df containing patient, tiles, other data."""
     random.seed(seed)   #FIXME doesn't work
     tiles_dfs = []

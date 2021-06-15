@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from ..experiment import Run
 from ..config import Cohort
-from ..basic.get_runs import concat_cohorts, get_tiles, balance_classes, discretize
+from ..basic.get_runs import prepare_cohorts, get_tiles, balance_classes, discretize
 
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,7 @@ def create_runs(*,
         valid_frac: float = .1,
         n_bins: int = 2,
         na_values: Iterable[Any] = [],
+        min_support: int = 10,
         **kwargs) -> Sequence[Run]:
 
     runs = []
@@ -50,17 +51,8 @@ def create_runs(*,
                         test_df=pd.read_csv(test_path) if test_path.exists else None))
         else:
             assert cohorts, 'No old training and testing sets found and no cohorts given!'
-            cohorts_df = concat_cohorts(
-                cohorts=cohorts, target_label=target_label, na_values=na_values)
-
-            # discretize values if necessary
-            if cohorts_df[target_label].nunique() > 10:
-                try:
-                    cohorts_df[target_label] = cohorts_df[target_label].map(float)
-                    logger.info(f'Discretizing {target_label}')
-                    cohorts_df[target_label] = discretize(cohorts_df[target_label], n_bins=n_bins)
-                except ValueError:
-                    pass
+            cohorts_df = prepare_cohorts(
+                cohorts, target_label, na_values, n_bins, min_support)
                 
             logger.info(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
             
