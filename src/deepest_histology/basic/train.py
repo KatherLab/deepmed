@@ -23,6 +23,7 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
           batch_size: int = 64,
           max_epochs: int = 10,
           opt: Optimizer = Adam,
+          lr: float = 2e-3,
           patience: int = 3,
           num_workers: int = 0,
           device: torch.cuda._device_t = None,
@@ -62,9 +63,6 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
         metrics=metrics,
         opt_func=opt)
 
-    logger.info('Searching for best LR.')
-    lr = learn.lr_find().lr_min
-    logger.info(f'{lr = }.')
     learn.fine_tune(epochs=max_epochs, base_lr=lr,
                     cbs=[SaveModelCallback(monitor=monitor),
                          EarlyStoppingCallback(monitor=monitor, min_delta=0.001,
