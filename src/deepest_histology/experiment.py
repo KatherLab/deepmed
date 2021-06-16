@@ -111,43 +111,48 @@ def do_experiment(*,
     logging.getLogger().addHandler(file_handler)
 
     logger.info('Getting runs')
-    runs = mode.get(project_dir=project_dir, **kwargs)
-    save_run_files_(runs)
 
     with Pool(num_concurrent_runs) as pool:
-        ress = [pool.apply_async(do_run, args=(run, mode, save_models, model_path), kwds=kwargs) for run in runs]
+        ress = [pool.apply_async(
+                    do_run,
+                    kwds={'run': run, 'mode': mode, 'model_path': model_path,
+                          'project_dir': project_dir, **kwargs})
+                for run in mode.get(project_dir=project_dir, **kwargs)]
         for res in ress:
-            x = res.get()
+            _ = res.get()
 
     if mode.evaluate:
         logger.info('Evaluating')
-        preds_df = mode.evaluate(project_dir, **kwargs)
+        mode.evaluate(project_dir, **kwargs)
 
-def do_run(run, mode, save_models, model_path, **kwargs):
-    logger.info(f'Starting run {run.directory}')
 
-    learn = (train_(train=mode.train, exp=run, save_models=save_models, **kwargs)
+def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path, **kwargs) -> None:
+    logger = logging.getLogger(str(run.directory.relative_to(project_dir)))
+    logger.info(f'Starting run')
+
+    save_run_files_(run, logger=logger)
+
+    learn = (train_(train=mode.train, exp=run, logger=logger, **kwargs)
              if mode.train and run.train_df is not None
              else None)
 
-    preds_df = (deploy_(deploy=mode.deploy, learn=learn, run=run, model_path=model_path,
-                        **kwargs)
-                if mode.deploy and run.test_df is not None
-                else None)
-
-def save_run_files_(runs: Iterable[Run]) -> None:
-    for run in runs:
-        logger.info(f'Saving training/testing data for run {run.directory}...')
-        run.directory.mkdir(exist_ok=True, parents=True)
-        if run.train_df is not None and \
-                not (training_set_path := run.directory/'training_set.csv.zip').exists():
-            run.train_df.to_csv(training_set_path, index=False, compression='zip')
-        if run.test_df is not None and \
-                not (testing_set_path := run.directory/'testing_set.csv.zip').exists():
-            run.test_df.to_csv(testing_set_path, index=False, compression='zip')
+    if mode.deploy and run.test_df is not None:
+        deploy_(deploy=mode.deploy, learn=learn, run=run, model_path=model_path, logger=logger,
+            **kwargs)
 
 
-def train_(train: Trainer, exp: Run, save_models: bool, **kwargs) -> Model:
+def save_run_files_(run: Run, logger) -> None:
+    logger.info(f'Saving training/testing data for run {run.directory}...')
+    run.directory.mkdir(exist_ok=True, parents=True)
+    if run.train_df is not None and \
+            not (training_set_path := run.directory/'training_set.csv.zip').exists():
+        run.train_df.to_csv(training_set_path, index=False, compression='zip')
+    if run.test_df is not None and \
+            not (testing_set_path := run.directory/'testing_set.csv.zip').exists():
+        run.test_df.to_csv(testing_set_path, index=False, compression='zip')
+
+
+def train_(train: Trainer, exp: Run, logger, **kwargs) -> Model:
     model_path = exp.directory/'export.pkl'
     if model_path.exists():
         logger.warning(f'{model_path} already exists, using old model!')
@@ -157,13 +162,14 @@ def train_(train: Trainer, exp: Run, save_models: bool, **kwargs) -> Model:
     learn = train(target_label=exp.target,
                   train_df=exp.train_df,
                   result_dir=exp.directory,
+                  logger=logger,
                   **kwargs)
 
     return learn
 
 
 def deploy_(deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Optional[PathLike],
-            **kwargs) -> pd.DataFrame:
+            logger, **kwargs) -> pd.DataFrame:
     preds_path = run.directory/'predictions.csv.zip'
     if preds_path.exists():
         logger.warning(f'{preds_path} already exists, using old predictions!')
@@ -178,6 +184,7 @@ def deploy_(deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Op
                       target_label=run.target,
                       test_df=run.test_df,
                       result_dir=run.directory,
+                      logger=logger,
                       **kwargs)
     preds_df.to_csv(preds_path, index=False, compression='zip')
 

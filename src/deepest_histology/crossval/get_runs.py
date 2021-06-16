@@ -1,23 +1,21 @@
 import random
 import logging
-from typing import Iterable, Sequence, List, Optional, Callable, Any
+from typing import Iterable, Sequence, Iterator, Any
 from pathlib import Path
 
-import torch
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
-from tqdm import tqdm
 
 from ..experiment import Run
 from ..config import Cohort
-from ..basic.get_runs import prepare_cohorts, get_tiles, balance_classes, discretize
+from ..basic.get_runs import prepare_cohorts, get_tiles, balance_classes
 
 
 logger = logging.getLogger(__name__)
 
 
 #TODO log defaults
-def create_runs(*,
+def get_runs(*,
         project_dir: Path,
         target_labels: Iterable[str],
         cohorts: Iterable[Cohort] = [],
@@ -28,9 +26,7 @@ def create_runs(*,
         n_bins: int = 2,
         na_values: Iterable[Any] = [],
         min_support: int = 10,
-        **kwargs) -> Sequence[Run]:
-
-    runs = []
+        **kwargs) -> Iterator[Run]:
 
     for target_label in target_labels:
         existing_fold_dirs = [fold_dir
@@ -44,11 +40,10 @@ def create_runs(*,
             for fold_dir in existing_fold_dirs:
                 train_path = fold_dir/'training_set.csv.zip'
                 test_path = fold_dir/'testing_set.csv.zip'
-                runs.append(
-                    Run(directory=fold_dir,
-                        target=target_label,
-                        train_df=pd.read_csv(train_path) if train_path.exists else None,
-                        test_df=pd.read_csv(test_path) if test_path.exists else None))
+                yield Run(directory=fold_dir,
+                          target=target_label,
+                          train_df=pd.read_csv(train_path) if train_path.exists else None,
+                          test_df=pd.read_csv(test_path) if test_path.exists else None)
         else:
             assert cohorts, 'No old training and testing sets found and no cohorts given!'
             cohorts_df = prepare_cohorts(
@@ -79,12 +74,10 @@ def create_runs(*,
                 logger.info(f'{len(test_df)} testing tiles')
                 assert not test_df.empty, 'Empty fold in cross validation!'
 
-                runs.append(Run(directory=project_dir/target_label/f'fold_{fold}',
-                                target=target_label,
-                                train_df=pd.concat([train_df, valid_df]),
-                                test_df=test_df))
-
-    return runs
+                yield Run(directory=project_dir/target_label/f'fold_{fold}',
+                          target=target_label,
+                          train_df=pd.concat([train_df, valid_df]),
+                          test_df=test_df)
 
 
 #TODO find better name

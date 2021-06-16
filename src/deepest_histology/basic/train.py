@@ -17,9 +17,6 @@ from fastai.vision.all import (
 from ..utils import log_defaults
 
 
-logger = logging.getLogger(__name__)
-
-
 #@log_defaults
 def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
           arch: Callable[[bool], nn.Module] = resnet18,
@@ -33,6 +30,7 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
               flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224),
           metrics: Iterable[Callable] = [BalancedAccuracy(), RocAucBinary()],
           monitor: str = 'valid_loss',
+          logger = logging,
           **kwargs) -> Learner:
 
     if device:

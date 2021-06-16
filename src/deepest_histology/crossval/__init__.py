@@ -1,3 +1,3 @@
-from .get_runs import create_runs, load_runs
+from .get_runs import get_runs
 from .evaluate import evaluate
 from .coordinator import crossval

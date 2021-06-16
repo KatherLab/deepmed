@@ -5,15 +5,13 @@ from pathlib import Path
 import pandas as pd
 
 
-logger = logging.getLogger(__name__)
-
-
 Evaluator = Callable[..., Union[None, Mapping[str, Any]]]
 
 
 def evaluate(
     project_dir: Path,
     target_evaluators: Iterable[Evaluator] = [],
+    logger = logging,
     **kwargs) -> None:
 
     stats_dfs = []

@@ -1,6 +1,6 @@
 import random
 import logging
-from typing import Iterable, Sequence, List, Optional, Callable, Any
+from typing import Iterable, Sequence, Iterator, List, Any
 from pathlib import Path
 from numbers import Number
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 @log_defaults
-def create_runs(*,
+def get_runs(
         project_dir: Path,
         target_labels: Iterable[str],
         train_cohorts: Iterable[Cohort] = [],
@@ -30,7 +30,7 @@ def create_runs(*,
         n_bins: int = 2,
         na_values: Iterable[Any] = [],
         min_support: int = 10,
-        **kwargs) -> Sequence[Run]:
+        **kwargs) -> Iterator[Run]:
     """Creates runs for a basic test-deploy procedure.
 
     This function will generate one training run per target label.  Due to large in-patient
@@ -58,8 +58,6 @@ def create_runs(*,
         min_support: Least amount of class samples required for the class to be included in
             training. Classes with less support are dropped.
     """
-
-    runs = []
 
     for target_label in target_labels:
         logger.info(f'For target {target_label}:')
@@ -113,12 +111,10 @@ def create_runs(*,
         else:
             test_df = None
 
-        runs.append(Run(directory=project_dir/target_label,
-                        target=target_label,
-                        train_df=train_df,
-                        test_df=test_df))
-
-    return runs
+        yield Run(directory=project_dir/target_label,
+                  target=target_label,
+                  train_df=train_df,
+                  test_df=test_df)
 
 
 def prepare_cohorts(
