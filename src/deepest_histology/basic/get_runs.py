@@ -72,6 +72,11 @@ def create_runs(*,
         elif train_cohorts:
             cohorts_df = prepare_cohorts(
                 train_cohorts, target_label, na_values, n_bins, min_support)
+
+            if cohorts_df[target_label].nunique() < 2:
+                logger.warning(f'Not enough classes for target {target_label}! skipping...')
+                continue
+
             logger.info(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
 
             # split off validation set
