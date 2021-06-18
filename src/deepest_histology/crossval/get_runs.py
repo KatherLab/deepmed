@@ -48,7 +48,11 @@ def get_runs(*,
             assert cohorts, 'No old training and testing sets found and no cohorts given!'
             cohorts_df = prepare_cohorts(
                 cohorts, target_label, na_values, n_bins, min_support)
-                
+
+            if cohorts_df[target_label].nunique() < 2:
+                logger.warning(f'Not enough classes for target {target_label}! skipping...')
+                continue
+
             logger.info(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
             
             folded_df = create_folds(cohorts_df=cohorts_df, target_label=target_label, folds=folds,
