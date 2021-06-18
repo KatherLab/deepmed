@@ -40,10 +40,20 @@ def get_runs(*,
             for fold_dir in existing_fold_dirs:
                 train_path = fold_dir/'training_set.csv.zip'
                 test_path = fold_dir/'testing_set.csv.zip'
+                train_df = (pd.read_csv(train_path)
+                            if train_path.exists() and not (fold_dir/'export.pkl').exists()
+                            else None)
+                test_df = (pd.read_csv(test_path)
+                           if test_path.exists() and not (fold_dir/'predictions.csv.zip').exists()
+                           else None)
+                if train_df is None and test_df is None:
+                    logger.info(f'Predictions for {fold_dir} already exist! Skipping...')
+                    continue
+
                 yield Run(directory=fold_dir,
                           target=target_label,
-                          train_df=pd.read_csv(train_path) if train_path.exists else None,
-                          test_df=pd.read_csv(test_path) if test_path.exists else None)
+                          train_df=train_df,
+                          test_df=test_df)
         else:
             assert cohorts, 'No old training and testing sets found and no cohorts given!'
             cohorts_df = prepare_cohorts(
