@@ -113,13 +113,12 @@ def do_experiment(*,
     logger.info('Getting runs')
 
     with Pool(num_concurrent_runs) as pool:
-        ress = [pool.apply_async(
-                    do_run,
-                    kwds={'run': run, 'mode': mode, 'model_path': model_path,
-                          'project_dir': project_dir, **kwargs})
-                for run in mode.get(project_dir=project_dir, **kwargs)]
-        for res in ress:
-            _ = res.get()
+        for _ in pool.imap_unordered(
+                do_run_kwd_wrapper_,
+                ({'run': run, 'mode': mode, 'model_path': model_path, 'project_dir': project_dir,
+                  **kwargs}
+                 for run in mode.get(project_dir=project_dir, **kwargs))):
+            pass
 
     if mode.evaluate:
         logger.info('Evaluating')
@@ -138,7 +137,11 @@ def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path, **k
 
     if mode.deploy and run.test_df is not None:
         deploy_(deploy=mode.deploy, learn=learn, run=run, model_path=model_path, logger=logger,
-            **kwargs)
+                **kwargs)
+
+
+def do_run_kwd_wrapper_(kwds):
+    return do_run(**kwds)
 
 
 def save_run_files_(run: Run, logger) -> None:
