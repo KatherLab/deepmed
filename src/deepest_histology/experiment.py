@@ -9,6 +9,7 @@ from fastai.vision.all import Learner, load_learner
 
 import pandas as pd
 import torch
+from torch.cuda import current_device
 
 
 logger = logging.getLogger(__name__)
@@ -89,8 +90,8 @@ def do_experiment(*,
         project_dir: PathLike,
         mode: Coordinator,
         model_path: Optional[PathLike] = None,
-        save_models: bool = True,
         num_concurrent_runs: int = 4,
+        device = None,
         **kwargs) -> None:
     """Runs an experiement.
     
@@ -112,7 +113,7 @@ def do_experiment(*,
 
     logger.info('Getting runs')
 
-    kwds = { 'mode': mode, 'model_path': model_path, 'project_dir': project_dir}
+    kwds = { 'mode': mode, 'model_path': model_path, 'project_dir': project_dir, 'device': device}
     if num_concurrent_runs == 1:
         for run in mode.get(project_dir=project_dir, **kwargs):
             do_run(run=run, **kwds, **kwargs)
@@ -129,19 +130,20 @@ def do_experiment(*,
         mode.evaluate(project_dir, **kwargs)
 
 
-def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path, **kwargs) -> None:
+def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path, device, **kwargs) -> None:
     logger = logging.getLogger(str(run.directory.relative_to(project_dir)))
     logger.info(f'Starting run')
 
     save_run_files_(run, logger=logger)
 
-    learn = (train_(train=mode.train, exp=run, logger=logger, **kwargs)
-             if mode.train and run.train_df is not None
-             else None)
+    with torch.cuda.device(device):
+        learn = (train_(train=mode.train, exp=run, logger=logger, **kwargs)
+                if mode.train and run.train_df is not None
+                else None)
 
-    if mode.deploy and run.test_df is not None:
-        deploy_(deploy=mode.deploy, learn=learn, run=run, model_path=model_path, logger=logger,
-                **kwargs)
+        if mode.deploy and run.test_df is not None:
+            deploy_(deploy=mode.deploy, learn=learn, run=run, model_path=model_path, logger=logger,
+                    **kwargs)
 
 
 def do_run_kwd_wrapper_(kwds):
@@ -184,7 +186,7 @@ def deploy_(deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Op
 
     if not learn:
         logger.info('Loading model')
-        learn = load_learner(model_path or run.directory/'export.pkl', cpu=False)
+        learn = load_learner(model_path or run.directory/'export.pkl')
 
     logger.info('Getting predictions')
     preds_df = deploy(learn=learn,
@@ -196,3 +198,11 @@ def deploy_(deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Op
     preds_df.to_csv(preds_path, index=False, compression='zip')
 
     return preds_df
+
+
+def load_learner(fname, device=None):
+    device = torch.device(device or torch.cuda.current_device())
+    res = torch.load(fname, map_location=device)
+    res.dls.device = device
+    if hasattr(res, 'to_fp32'): res = res.to_fp32()
+    return res

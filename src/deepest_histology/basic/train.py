@@ -26,16 +26,12 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
           lr: float = 2e-3,
           patience: int = 3,
           num_workers: int = 0,
-          device: torch.cuda._device_t = None,
           tfms: Callable = aug_transforms(
               flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224),
           metrics: Iterable[Callable] = [BalancedAccuracy(), RocAucBinary()],
           monitor: str = 'valid_loss',
           logger = logging,
           **kwargs) -> Learner:
-
-    if device:
-        torch.cuda.set_device(device)
 
     dblock = DataBlock(blocks=(ImageBlock, CategoryBlock),
                        get_x=ColReader('tile_path'),

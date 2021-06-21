@@ -14,12 +14,10 @@ from ..utils import log_defaults
 
 #@log_defaults
 def deploy(learn: Learner, target_label: str, test_df: pd.DataFrame, result_dir: Path,
-           device: torch.cuda._device_t = None, **kwargs) -> pd.DataFrame:
-    if device:
-        torch.cuda.set_device(device)
+           **kwargs) -> pd.DataFrame:
 
     test_dl = learn.dls.test_dl(test_df)
-    preds, _ = learn.get_preds(dl=test_dl)
+    preds, _ = learn.get_preds(dl=test_dl, inner=True)
 
     for class_, i in learn.dls.vocab.o2i.items():
         test_df[f'{target_label}_{class_}'] = preds[:, i]
