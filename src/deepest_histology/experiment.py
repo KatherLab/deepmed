@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 import logging
+from itertools import cycle
 from typing import Type, Sequence, Tuple, Callable, Optional, Any, Dict, TypeVar, Union, Iterable
 from pathlib import Path
 from dataclasses import dataclass
-from multiprocessing import Pool
+from multiprocessing import Pool, Manager
 
 from fastai.vision.all import Learner, load_learner
 
 import pandas as pd
 import torch
+from torch._C import device
 from torch.cuda import current_device
 
 
@@ -91,7 +93,7 @@ def do_experiment(*,
         mode: Coordinator,
         model_path: Optional[PathLike] = None,
         num_concurrent_runs: int = 4,
-        device = None,
+        devices = [torch.cuda.current_device()],
         **kwargs) -> None:
     """Runs an experiement.
     
@@ -113,15 +115,17 @@ def do_experiment(*,
 
     logger.info('Getting runs')
 
-    kwds = { 'mode': mode, 'model_path': model_path, 'project_dir': project_dir, 'device': device}
-    if num_concurrent_runs == 1:
-        for run in mode.get(project_dir=project_dir, **kwargs):
-            do_run(run=run, **kwds, **kwargs)
-    else:
+    kwds = { 'mode': mode, 'model_path': model_path, 'project_dir': project_dir }
+
+    with Manager() as manager:
+        # semaphores which tell us which GPUs still have resources free
+        # each gpu is a assumed to have the same capabilities
+        capacities = [manager.Semaphore((num_concurrent_runs+len(devices)-1)//len(devices))
+                      for _ in devices]
         with Pool(num_concurrent_runs) as pool:
             for _ in pool.imap_unordered(
                     do_run_kwd_wrapper_,
-                    ({'run': run, **kwds, **kwargs}
+                    ({'run': run, 'devices': devices, 'capacities': capacities,  **kwds, **kwargs}
                     for run in mode.get(project_dir=project_dir, **kwargs))):
                 pass
 
@@ -130,24 +134,37 @@ def do_experiment(*,
         mode.evaluate(project_dir, **kwargs)
 
 
-def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path, device, **kwargs) -> None:
+def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
+           devices: Iterable, capacities: Iterable, **kwargs) -> None:
     logger = logging.getLogger(str(run.directory.relative_to(project_dir)))
     logger.info(f'Starting run')
 
     save_run_files_(run, logger=logger)
 
-    with torch.cuda.device(device):
-        learn = (train_(train=mode.train, exp=run, logger=logger, **kwargs)
-                if mode.train and run.train_df is not None
-                else None)
+    for device, capacity in cycle(list(zip(devices, capacities))):
+        if not capacity.acquire(blocking=False):
+            continue
 
-        if mode.deploy and run.test_df is not None:
-            deploy_(deploy=mode.deploy, learn=learn, run=run, model_path=model_path, logger=logger,
-                    **kwargs)
+        try:
+            with torch.cuda.device(device):
+                learn = (train_(train=mode.train, exp=run, logger=logger, **kwargs)
+                        if mode.train and run.train_df is not None
+                        else None)
+
+                if mode.deploy and run.test_df is not None:
+                    deploy_(deploy=mode.deploy, learn=learn, run=run, model_path=model_path, logger=logger,
+                            **kwargs)
+        finally:
+            capacity.release()
+            break
+
 
 
 def do_run_kwd_wrapper_(kwds):
-    return do_run(**kwds)
+    try:
+        return do_run(**kwds)
+    except:
+        logger.exception(f'Exception in run {kwds["run"]}!')
 
 
 def save_run_files_(run: Run, logger) -> None:
