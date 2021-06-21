@@ -112,13 +112,17 @@ def do_experiment(*,
 
     logger.info('Getting runs')
 
-    with Pool(num_concurrent_runs) as pool:
-        for _ in pool.imap_unordered(
-                do_run_kwd_wrapper_,
-                ({'run': run, 'mode': mode, 'model_path': model_path, 'project_dir': project_dir,
-                  **kwargs}
-                 for run in mode.get(project_dir=project_dir, **kwargs))):
-            pass
+    kwds = { 'mode': mode, 'model_path': model_path, 'project_dir': project_dir}
+    if num_concurrent_runs == 1:
+        for run in mode.get(project_dir=project_dir, **kwargs):
+            do_run(run=run, **kwds, **kwargs)
+    else:
+        with Pool(num_concurrent_runs) as pool:
+            for _ in pool.imap_unordered(
+                    do_run_kwd_wrapper_,
+                    ({'run': run, **kwds, **kwargs}
+                    for run in mode.get(project_dir=project_dir, **kwargs))):
+                pass
 
     if mode.evaluate:
         logger.info('Evaluating')
