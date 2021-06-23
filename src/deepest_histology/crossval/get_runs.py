@@ -46,9 +46,6 @@ def get_runs(*,
                 test_df = (pd.read_csv(test_path)
                            if test_path.exists() and not (fold_dir/'predictions.csv.zip').exists()
                            else None)
-                if train_df is None and test_df is None:
-                    logger.info(f'Predictions for {fold_dir} already exist! Skipping...')
-                    continue
 
                 yield Run(directory=fold_dir,
                           target=target_label,

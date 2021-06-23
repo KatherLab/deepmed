@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import logging
-from itertools import cycle
-from typing import TypeVar, Union, Iterable, Optional, Callable, Sequence
+from zipfile import BadZipFile
+from typing import TypeVar, Union, Iterable, Optional, Callable, Sequence, Tuple
 from pathlib import Path
 from dataclasses import dataclass
 from multiprocessing import Pool, Manager
@@ -92,6 +92,7 @@ def do_experiment(*,
         model_path: Optional[PathLike] = None,
         num_concurrent_runs: int = 4,
         devices = [torch.cuda.current_device()],
+        evaluator_groups: Sequence[Iterable[Callable]] = [],
         **kwargs) -> None:
     """Runs an experiement.
     
@@ -124,17 +125,65 @@ def do_experiment(*,
                       for _ in devices]
         runs = ({'run': run, 'devices': devices, 'capacities': capacities,  **kwds, **kwargs}
                 for run in mode.get(project_dir=project_dir, **kwargs))
-        if num_concurrent_runs == 1:
-            for run in runs:
-                do_run_kwd_wrapper_(run)
-        else:
-            with Pool(num_concurrent_runs) as pool:
-                for _ in pool.imap_unordered(do_run_kwd_wrapper_, runs):
-                    pass
 
-    if mode.evaluate:
-        logger.info('Evaluating')
-        mode.evaluate(project_dir, **kwargs)
+        with Pool(num_concurrent_runs) as pool:
+            last_run = None
+            for run in pool.imap(do_run_wrapper_, runs, chunksize=1):
+                run_dir_rel = run.directory.relative_to(project_dir)
+
+                if last_run:
+                    first_differing_level = \
+                        next(i for i, (old, new) in enumerate(zip(last_run_dir_rel.parts,
+                                                                  run_dir_rel.parts))
+                               if old != new)
+                    paths_and_evaluator_groups = list(zip([*reversed(last_run_dir_rel.parents),
+                                                           last_run_dir_rel],
+                                                          evaluator_groups))
+                    run_evaluators(
+                        last_run.target, project_dir,
+                        paths_and_evaluator_groups[first_differing_level+1:])
+                last_run, last_run_dir_rel = run, run_dir_rel
+            else:
+                paths_and_evaluator_groups = list(zip([*reversed(run_dir_rel.parents), run_dir_rel],
+                                                       evaluator_groups))
+                run_evaluators(run.target, project_dir, paths_and_evaluator_groups)
+
+
+def run_evaluators(
+        target_label: str, project_dir: Path,
+        paths_and_evaluator_groups: Sequence[Tuple[Path, Iterable[Callable]]]):
+    for path, evaluators in reversed(paths_and_evaluator_groups):
+        logger.info(f'Evaluating {path}')
+        eval_dir = project_dir/path
+        if evaluators:
+            preds_df = get_preds_df(eval_dir)
+        for evaluator in evaluators:
+            evaluator(target_label, preds_df, eval_dir)
+
+
+def get_preds_df(result_dir: Path) -> pd.DataFrame:
+    # load predictions
+    if (preds_path := result_dir/'predictions.csv.zip').exists():
+        try:
+            preds_df = pd.read_csv(preds_path)
+        except BadZipFile:
+            # delete file and try to regenerate it
+            preds_path.unlink()
+            return get_preds_df(result_dir)
+    else:
+        # create an accumulated predictions df if there isn't one already
+        #TODO also do this if the already existing one is older than the ones in the child dirs
+        dfs = []
+        for df_path in result_dir.glob('*/predictions.csv.zip'):
+            df = pd.read_csv(df_path)
+            # column which tells us which subset these predictions are from
+            df[f'subset_{result_dir.name}'] = df_path.name
+            dfs.append(df)
+
+        preds_df = pd.concat(dfs)
+        preds_df.to_csv(preds_path, index=False, compression='zip')
+
+    return preds_df
 
 
 def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
@@ -166,11 +215,14 @@ def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
 
 
 
-def do_run_kwd_wrapper_(kwds):
+def do_run_wrapper_(kwds):
+    #TODO explain!
     try:
-        return do_run(**kwds)
+        do_run(**kwds)
     except:
         logger.exception(f'Exception in run {kwds["run"]}!')
+    finally:
+        return kwds['run']
 
 
 def save_run_files_(run: Run, logger) -> None:

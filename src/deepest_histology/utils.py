@@ -15,7 +15,7 @@ def log_defaults(func):
                                 if (param := params[k]).default != inspect.Parameter.empty]
         # log them
         for param in params_with_defaults:
-            logging.getLogger(func.__module__).info(f'using default value {param}')
+            logging.getLogger(func.__module__).debug(f'using default value {param}')
 
         # call wrapped function
         return func(*args, **kwargs)

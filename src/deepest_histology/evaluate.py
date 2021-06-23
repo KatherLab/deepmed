@@ -22,11 +22,11 @@ class Grouped:
                     preds_df.groupby(self.by)[f'{target_label}_pred']
                             .agg(lambda x: sum(x == class_) / len(x)))
 
-        group_dir = result_dir/by
+        group_dir = result_dir/self.by
         group_dir.mkdir(exist_ok=True)
         results = self.evaluate(target_label, grouped_df, group_dir, **kwargs)
         if results:
-            return { f'{eval_name}_{by}': val for eval_name, val in results.items() }
+            return { f'{eval_name}_{self.by}': val for eval_name, val in results.items() }
 
 
 class SubGrouped:
