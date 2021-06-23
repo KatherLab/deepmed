@@ -101,6 +101,8 @@ def do_experiment(*,
         save_models: whether or not to save the resulting models.
     """
 
+    assert num_concurrent_runs >= 1
+
     project_dir = Path(project_dir)
     project_dir.mkdir(exist_ok=True, parents=True)
 
@@ -120,12 +122,15 @@ def do_experiment(*,
         # each gpu is a assumed to have the same capabilities
         capacities = [manager.Semaphore((num_concurrent_runs+len(devices)-1)//len(devices))
                       for _ in devices]
-        with Pool(num_concurrent_runs) as pool:
-            for _ in pool.imap_unordered(
-                    do_run_kwd_wrapper_,
-                    ({'run': run, 'devices': devices, 'capacities': capacities,  **kwds, **kwargs}
-                    for run in mode.get(project_dir=project_dir, **kwargs))):
-                pass
+        runs = ({'run': run, 'devices': devices, 'capacities': capacities,  **kwds, **kwargs}
+                for run in mode.get(project_dir=project_dir, **kwargs))
+        if num_concurrent_runs == 1:
+            for run in runs:
+                do_run_kwd_wrapper_(run)
+        else:
+            with Pool(num_concurrent_runs) as pool:
+                for _ in pool.imap_unordered(do_run_kwd_wrapper_, runs):
+                    pass
 
     if mode.evaluate:
         logger.info('Evaluating')
@@ -133,13 +138,14 @@ def do_experiment(*,
 
 
 def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
-           devices: Iterable, capacities: Iterable, **kwargs) -> None:
+           devices: Iterable, capacities: Iterable = [], **kwargs) -> None:
     logger = logging.getLogger(str(run.directory.relative_to(project_dir)))
     logger.info(f'Starting run')
 
     save_run_files_(run, logger=logger)
 
-    for device, capacity in cycle(list(zip(devices, capacities))):
+    for device, capacity in zip(devices, capacities):
+        # search for a free gpu
         if not capacity.acquire(blocking=False):
             continue
 
@@ -154,7 +160,8 @@ def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
                             **kwargs)
         finally:
             capacity.release()
-            break
+    else:
+        raise RuntimeError('Could not find a free GPU!')
 
 
 
