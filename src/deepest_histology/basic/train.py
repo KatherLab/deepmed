@@ -1,6 +1,7 @@
 from typing import Callable, Iterable
 import logging
 from pathlib import Path
+from fastai.callback.tracker import TrackerCallback
 
 import torch
 import pandas as pd
@@ -59,11 +60,36 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
         metrics=metrics,
         opt_func=opt)
 
-    learn.fine_tune(epochs=max_epochs, base_lr=lr,
-                    cbs=[SaveModelCallback(monitor=monitor),
-                         EarlyStoppingCallback(monitor=monitor, min_delta=0.001,
-                                               patience=patience),
-                         CSVLogger()])
+    cbs = [SaveModelCallback(monitor=monitor, with_opt=True, reset_on_fit=False),
+           EarlyStoppingCallback(monitor=monitor, min_delta=0.001,
+                               patience=patience, reset_on_fit=False),
+           CSVLogger(append=True)]
+
+    if (result_dir/'models'/'model.pth').exists():
+        fit_from_checkpoint(learn, lr/2, max_epochs, cbs, monitor, logger)
+    else:
+        learn.fine_tune(epochs=max_epochs, base_lr=lr, cbs=cbs)
+
     learn.export()
 
     return learn
+
+
+def fit_from_checkpoint(
+        learn: Learner, lr: float, max_epochs: int, cbs: Iterable[Callable], monitor: str, logger) \
+        -> None:
+    logger.info('Continuing from checkpoint...')
+    learn.load('model')
+
+    # get performance of checkpoint model
+    best_scores = learn.validate()
+    idx = learn.recorder.metric_names[2:].index(monitor)
+    logger.info(f'Checkpoint\'s {monitor}: {best_scores[idx]}')
+
+    # update tracker callback's high scores
+    for cb in cbs:
+        if isinstance(cb, TrackerCallback):
+            cb.best = best_scores[idx]
+
+    learn.unfreeze()
+    learn.fit_one_cycle(max_epochs, slice(lr/100, lr), pct_start=.3, div=5.)
