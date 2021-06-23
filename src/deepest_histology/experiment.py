@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import logging
 from itertools import cycle
-from typing import Type, Sequence, Tuple, Callable, Optional, Any, Dict, TypeVar, Union, Iterable
+from typing import TypeVar, Union, Iterable, Optional, Callable, Sequence
 from pathlib import Path
 from dataclasses import dataclass
 from multiprocessing import Pool, Manager
@@ -10,8 +10,6 @@ from fastai.vision.all import Learner, load_learner
 
 import pandas as pd
 import torch
-from torch._C import device
-from torch.cuda import current_device
 
 
 logger = logging.getLogger(__name__)
@@ -203,7 +201,7 @@ def deploy_(deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Op
 
     if not learn:
         logger.info('Loading model')
-        learn = load_learner(model_path or run.directory/'export.pkl')
+        learn = load_learner_device(model_path or run.directory/'export.pkl')
 
     logger.info('Getting predictions')
     preds_df = deploy(learn=learn,
@@ -217,7 +215,8 @@ def deploy_(deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Op
     return preds_df
 
 
-def load_learner(fname, device=None):
+def load_learner_device(fname, device=None):
+    """Loads a learner to a specific device."""
     device = torch.device(device or torch.cuda.current_device())
     res = torch.load(fname, map_location=device)
     res.dls.device = device

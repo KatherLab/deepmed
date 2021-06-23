@@ -1,5 +1,5 @@
-import shutil
-from typing import Iterable, Callable, Sequence, Any, Mapping, Optional
+from dataclasses import dataclass
+from typing import Callable, Mapping, Optional
 from pathlib import Path
 
 import pandas as pd
@@ -10,68 +10,71 @@ from .basic.evaluate import Evaluator
 import sklearn.metrics as skm
 
 
-def Grouped(evaluate: Evaluator, by: str = 'PATIENT'):
-    def grouped(target_label, preds_df, result_dir, **kwargs):
-        grouped_df = preds_df.groupby(by).first()
+@dataclass
+class Grouped:
+    evaluate: Evaluator
+    by: str = 'PATIENT'
+
+    def __call__(self, target_label, preds_df, result_dir, **kwargs):
+        grouped_df = preds_df.groupby(self.by).first()
         for class_ in preds_df[target_label].unique():
             grouped_df[f'{target_label}_{class_}'] = (
-                    preds_df.groupby(by)[f'{target_label}_pred']
+                    preds_df.groupby(self.by)[f'{target_label}_pred']
                             .agg(lambda x: sum(x == class_) / len(x)))
 
         group_dir = result_dir/by
         group_dir.mkdir(exist_ok=True)
-        results = evaluate(target_label, grouped_df, group_dir, **kwargs)
+        results = self.evaluate(target_label, grouped_df, group_dir, **kwargs)
         if results:
             return { f'{eval_name}_{by}': val for eval_name, val in results.items() }
 
-    return grouped
 
-
-def SubGrouped(evaluate: Evaluator, by: str):
-    def sub_grouped(target_label, preds_df, result_dir, **kwargs):
+class SubGrouped:
+    evaluate: Evaluator
+    by: str = 'PATIENT'
+    def __call__(self, target_label, preds_df, result_dir, **kwargs):
         results = {}
-        for group, group_df in preds_df.groupby(by):
+        for group, group_df in preds_df.groupby(self.by):
             group_dir = result_dir/group
             group_dir.mkdir(parents=True, exist_ok=True)
-            if (group_results := evaluate(target_label, group_df, group_dir, **kwargs)):
+            if (group_results := self.evaluate(target_label, group_df, group_dir, **kwargs)):
                 for eval_name, score in group_results.items():
                     results[f'{eval_name}_{group}'] = score
         return results
 
-    return sub_grouped
 
-
-def F1(min_tpr: Optional[float] = None) -> Callable[..., Mapping[str, float]]:
+class F1:
     """Calculates the F1 score.
     
     If min_tpr is not given, a threshold which maximizes the F1 score is selected; otherwise the
     threshold which guarantees a tpr of at least min_tpr is used.
     """
-    def f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, **kwargs) \
+    min_tpr: Optional[float] = None
+
+    def __call__(self, target_label: str, preds_df: pd.DataFrame, _result_dir: Path, **kwargs) \
             -> Mapping[str, float]:
         y_true = preds_df[target_label]
-        y_pred = preds_df[f'{target_label}_pred']
 
         stats = {}
         for class_ in y_true.unique():
-            thresh = get_thresh(target_label, preds_df, class_, min_tpr=min_tpr)
+            thresh = get_thresh(target_label, preds_df, class_, min_tpr=self.min_tpr)
 
-            stats[f'{target_label}_{class_}_f1_{min_tpr or "opt"}'] = \
+            stats[f'{target_label}_{class_}_f1_{self.min_tpr or "opt"}'] = \
                 skm.f1_score(y_true == class_,
                              preds_df[f'{target_label}_{class_}'] >= thresh)
 
         return stats
 
-    return f1
 
+class ConfusionMatrix:
+    min_tpr: Optional[float] = None
 
-def ConfusionMatrix(min_tpr: Optional[float] = None) -> Callable[..., None]:
-    def confusion_matrix(target_label: str, preds_df: pd.DataFrame, result_dir: Path, **kwargs) \
+    def __call__(self, target_label: str, preds_df: pd.DataFrame, result_dir: Path, **kwargs) \
             -> None:
         classes = preds_df[target_label].unique()
         if len(classes) == 2:
             for class_ in classes:
-                thresh = get_thresh(target_label, preds_df, pos_label=class_, min_tpr=min_tpr)
+                thresh = get_thresh(target_label, preds_df, pos_label=class_, min_tpr=self.min_tpr)
                 y_true = preds_df[target_label] == class_
                 y_pred = preds_df[f'{target_label}_{class_}'] >= thresh
                 cm = skm.confusion_matrix(y_true, y_pred)
@@ -82,18 +85,17 @@ def ConfusionMatrix(min_tpr: Optional[float] = None) -> Callable[..., None]:
                 disp.plot()
                 plt.title(
                     f'{target_label} ' +
-                    (f"({class_} TPR ≥ {min_tpr})" if min_tpr else f"(Optimal {class_} F1 Score)"))
+                    (f"({class_} TPR ≥ {self.min_tpr})" if self.min_tpr
+                     else f"(Optimal {class_} F1 Score)"))
                 plt.savefig(result_dir/
-                            f'conf_matrix_{target_label}_{class_}_{min_tpr or "opt"}.svg')
-        else:
+                            f'conf_matrix_{target_label}_{class_}_{self.min_tpr or "opt"}.svg')
+        else:   #TODO does this work?
             cm = skm.confusion_matrix(
                 preds_df[target_label] == class_, preds_df[f'{target_label}_pred'], labels=classes)
             disp = skm.ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
             disp.plot()
             plt.title(f'{target_label}')
             plt.savefig(result_dir/f'conf_matrix_{target_label}.svg')
-    
-    return confusion_matrix
 
 
 def get_thresh(target_label: str, preds_df: pd.DataFrame, pos_label: str,
