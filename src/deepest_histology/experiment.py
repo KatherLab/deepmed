@@ -160,6 +160,7 @@ def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
                             **kwargs)
         finally:
             capacity.release()
+            break
     else:
         raise RuntimeError('Could not find a free GPU!')
 

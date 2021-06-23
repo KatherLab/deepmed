@@ -1,4 +1,5 @@
 import shutil
+import os
 from typing import Callable, Iterable
 import logging
 from pathlib import Path
@@ -58,13 +59,17 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
         metrics=metrics,
         opt_func=opt)
 
-    cbs = [SaveModelCallback(monitor=monitor, with_opt=True, reset_on_fit=False),
-           EarlyStoppingCallback(monitor=monitor, min_delta=0.001,
-                               patience=patience, reset_on_fit=False),
-           CSVLogger(append=True)]
+    cbs = [
+        SaveModelCallback(monitor=monitor, fname=f'best_{monitor}', reset_on_fit=False),
+        SaveModelCallback(every_epoch=True, with_opt=True, reset_on_fit=False),
+        EarlyStoppingCallback(
+            monitor=monitor, min_delta=0.001, patience=patience, reset_on_fit=False),
+        CSVLogger(append=True)]
 
-    if (result_dir/'models'/'model.pth').exists():
-        fit_from_checkpoint(learn, lr/2, max_epochs, cbs, monitor, logger)
+    if (result_dir/'models'/f'best_{monitor}.pth').exists():
+        fit_from_checkpoint(
+            learn=learn, result_dir=result_dir, lr=lr/2, max_epochs=max_epochs, cbs=cbs,
+            monitor=monitor, logger=logger)
     else:
         learn.fine_tune(epochs=max_epochs, base_lr=lr, cbs=cbs)
 
@@ -76,20 +81,26 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
 
 
 def fit_from_checkpoint(
-        learn: Learner, lr: float, max_epochs: int, cbs: Iterable[Callable], monitor: str, logger) \
+        learn: Learner, result_dir: Path, lr: float, max_epochs: int, cbs: Iterable[Callable],
+        monitor: str, logger) \
         -> None:
     logger.info('Continuing from checkpoint...')
-    learn.load('model')
 
-    # get performance of checkpoint model
-    best_scores = learn.validate()
-    idx = learn.recorder.metric_names[2:].index(monitor)
-    logger.info(f'Checkpoint\'s {monitor}: {best_scores[idx]}')
+    # get best performance so far
+    history_df = pd.read_csv(result_dir/'history.csv')
+    scores = pd.to_numeric(history_df[monitor], errors='coerce')
+    high_score = scores.min() if 'loss' in monitor or 'error' in monitor else scores.max()
+    logger.info(f'Best {monitor} up to checkpoint: {high_score}')
 
     # update tracker callback's high scores
     for cb in cbs:
         if isinstance(cb, TrackerCallback):
-            cb.best = best_scores[idx]
+            cb.best = high_score
 
+    # load newest model
+    name = max((result_dir/'models').glob('model_*.pth'), key=os.path.getctime).stem
+    learn.load(name, with_opt=True, strict=True)
+
+    #TODO only train for remaining epochs
     learn.unfreeze()
-    learn.fit_one_cycle(max_epochs, slice(lr/100, lr), pct_start=.3, div=5.)
+    learn.fit_one_cycle(max_epochs, slice(lr/100, lr), pct_start=.3, div=5., cbs=cbs)
