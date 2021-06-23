@@ -101,6 +101,7 @@ def fit_from_checkpoint(
     name = max((result_dir/'models').glob('model_*.pth'), key=os.path.getctime).stem
     learn.load(name, with_opt=True, strict=True)
 
-    #TODO only train for remaining epochs
+    remaining_epochs = max_epochs - int(name.split('_')[1])
+    logger.info(f'{remaining_epochs = }')
     learn.unfreeze()
-    learn.fit_one_cycle(max_epochs, slice(lr/100, lr), pct_start=.3, div=5., cbs=cbs)
+    learn.fit_one_cycle(remaining_epochs, slice(lr/100, lr), pct_start=.3, div=5., cbs=cbs)
