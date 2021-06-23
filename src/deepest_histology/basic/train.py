@@ -1,3 +1,4 @@
+import shutil
 from typing import Callable, Iterable
 import logging
 from pathlib import Path
@@ -6,9 +7,6 @@ from fastai.callback.tracker import TrackerCallback
 import torch
 import pandas as pd
 from torch import nn
-from torch import optim
-from sklearn import preprocessing
-from tqdm import tqdm
 
 from fastai.vision.all import (
     Optimizer, Adam, Learner, DataBlock, ImageBlock, CategoryBlock, ColReader, ColSplitter,
@@ -71,6 +69,8 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
         learn.fine_tune(epochs=max_epochs, base_lr=lr, cbs=cbs)
 
     learn.export()
+
+    shutil.rmtree(result_dir/'models')
 
     return learn
 
