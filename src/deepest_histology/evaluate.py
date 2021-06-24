@@ -89,6 +89,7 @@ class ConfusionMatrix:
                      else f"(Optimal {class_} F1 Score)"))
                 plt.savefig(result_dir/
                             f'conf_matrix_{target_label}_{class_}_{self.min_tpr or "opt"}.svg')
+                plt.close()
         else:   #TODO does this work?
             cm = skm.confusion_matrix(
                 preds_df[target_label] == class_, preds_df[f'{target_label}_pred'], labels=classes)
@@ -96,6 +97,7 @@ class ConfusionMatrix:
             disp.plot()
             plt.title(f'{target_label}')
             plt.savefig(result_dir/f'conf_matrix_{target_label}.svg')
+            plt.close()
 
 
 def get_thresh(target_label: str, preds_df: pd.DataFrame, pos_label: str,
@@ -161,6 +163,7 @@ def top_tiles(
                 plt.axis('off')
                 plt.imshow(Image.open(tile))
         plt.savefig(result_dir/f'{target_label}_{class_}_top_tiles.svg', bbox_inches='tight')
+        plt.close()
 
 
 import numpy as np
@@ -242,3 +245,4 @@ def roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path, **_kwargs) 
             plot_simple_roc(preds_df, target_label, class_, ax=ax, conf=.95)
 
         fig.savefig(result_dir/f'roc_{target_label}_{class_}.svg')
+        plt.close()
