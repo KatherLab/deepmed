@@ -6,6 +6,7 @@ from typing import \
 from pathlib import Path
 from dataclasses import dataclass
 from multiprocessing import Pool, Manager
+from multiprocessing.synchronize import Semaphore
 
 from fastai.vision.all import Learner, load_learner
 
@@ -42,7 +43,7 @@ class Run:
     """
 
 
-RunGetter = Callable[..., Sequence[Run]]
+RunGetter = Callable[..., Iterator[Run]]
 """A function which creates a series of runs."""
 
 Trainer = Callable[..., Model]
@@ -80,8 +81,6 @@ class Coordinator:
     """A function which trains a model for each of the runs."""
     deploy: Optional[Deployer] = None
     """A function which deploys a trained model to a test set, yielding predictions."""
-    evaluate: Optional[Callable] = None
-    """A function which takes a model's predictions and calculates metrics, creates graphs, etc."""
 
 
 PathLike = Union[str, Path]
@@ -123,7 +122,7 @@ def do_experiment(*,
     with Manager() as manager:
         # semaphores which tell us which GPUs still have resources free
         # each gpu is a assumed to have the same capabilities
-        capacities = [manager.Semaphore((num_concurrent_runs+len(devices)-1)//len(devices))
+        capacities = [manager.Semaphore((num_concurrent_runs+len(devices)-1)//len(devices))  # type: ignore
                       for _ in devices]
         run_args = ({'run': run, 'devices': devices, 'capacities': capacities,  **kwds, **kwargs}
                      for run in mode.get(project_dir=project_dir, **kwargs))
@@ -222,7 +221,7 @@ def get_preds_df(result_dir: Path) -> pd.DataFrame:
 
 
 def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
-           devices: Iterable, capacities: Iterable = [], **kwargs) -> None:
+           devices: Iterable, capacities: Iterable[Semaphore] = [], **kwargs) -> None:
     logger = logging.getLogger(str(run.directory.relative_to(project_dir)))
     logger.info(f'Starting run')
 
@@ -230,7 +229,7 @@ def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
 
     for device, capacity in zip(devices, capacities):
         # search for a free gpu
-        if not capacity.acquire(blocking=False): continue
+        if not capacity.acquire(blocking=False): continue   # type: ignore
         try:
             with torch.cuda.device(device):
                 learn = (train_(train=mode.train, exp=run, logger=logger, **kwargs)

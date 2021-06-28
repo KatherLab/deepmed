@@ -1,14 +1,13 @@
 from dataclasses import dataclass
-from typing import Callable, Mapping, Optional
+from typing import Mapping, Optional
 from pathlib import Path
 
 import pandas as pd
 from PIL import Image
 
-from .basic.evaluate import Evaluator
-
 import sklearn.metrics as skm
 
+from experiment import Evaluator
 
 @dataclass
 class Grouped:
@@ -29,6 +28,7 @@ class Grouped:
             return { f'{eval_name}_{self.by}': val for eval_name, val in results.items() }
 
 
+@dataclass
 class SubGrouped:
     evaluate: Evaluator
     by: str = 'PATIENT'
@@ -43,6 +43,7 @@ class SubGrouped:
         return results
 
 
+@dataclass
 class F1:
     """Calculates the F1 score.
     
@@ -66,6 +67,7 @@ class F1:
         return stats
 
 
+@dataclass
 class ConfusionMatrix:
     min_tpr: Optional[float] = None
 
@@ -92,7 +94,7 @@ class ConfusionMatrix:
                 plt.close()
         else:   #TODO does this work?
             cm = skm.confusion_matrix(
-                preds_df[target_label] == class_, preds_df[f'{target_label}_pred'], labels=classes)
+                preds_df[target_label], preds_df[f'{target_label}_pred'], labels=classes)
             disp = skm.ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
             disp.plot()
             plt.title(f'{target_label}')
