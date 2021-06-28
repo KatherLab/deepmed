@@ -1,6 +1,7 @@
 import random
 import logging
-from typing import Iterable, Sequence, Iterator, List, Any
+from dataclasses import dataclass, fields
+from typing import Iterable, Sequence, Iterator, List, Any, Union
 from pathlib import Path
 from numbers import Number
 
@@ -11,11 +12,26 @@ from sklearn import preprocessing
 from tqdm import tqdm
 
 from ..experiment import Run
-from ..config import Cohort
 from ..utils import log_defaults
 
 
 logger = logging.getLogger(__name__)
+
+
+PathLike = Union[str, Path]
+
+
+@dataclass
+class Cohort:
+    tile_dir: Path
+    clini_path: Path
+    slide_path: Path
+
+    def __post_init__(self):
+        """Coerces attributes."""
+        for field in fields(self):
+            if not isinstance((value := getattr(self, field.name)), field.type):
+                setattr(self, field.name, field.type(value))
 
 
 @log_defaults
@@ -174,8 +190,8 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
     cohort_dfs: List[pd.DataFrame] = []
 
     for cohort in cohorts:
-        logger.info(f'For cohort {cohort.root_dir}')
-        clini_path, slide_path, tile_dir = cohort.clini_table, cohort.slide_table, cohort.tile_dir
+        logger.info(f'For cohort {cohort.tile_dir}')
+        clini_path, slide_path, tile_dir = cohort.clini_path, cohort.slide_path, cohort.tile_dir
 
         clini_df = (pd.read_csv(clini_path, dtype=str) if clini_path.suffix == '.csv'
                     else pd.read_excel(clini_path, dtype=str))
@@ -196,7 +212,6 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
 
         # only keep patients which have slides
         cohort_df = clini_df.merge(slide_df, on='PATIENT')
-        cohort_df['cohort'] = cohort.root_dir.name
         logger.info(f'#slides after removing slides without patient data: {len(cohort_df)}')
 
         # filter n/a values

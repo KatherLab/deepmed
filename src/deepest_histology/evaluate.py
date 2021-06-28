@@ -7,7 +7,7 @@ from PIL import Image
 
 import sklearn.metrics as skm
 
-from experiment import Evaluator
+from .experiment import Evaluator
 
 @dataclass
 class Grouped:

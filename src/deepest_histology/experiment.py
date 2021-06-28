@@ -2,7 +2,7 @@
 import logging
 from zipfile import BadZipFile
 from typing import \
-    TypeVar, Union, Iterable, Optional, Callable, Sequence, Tuple, Iterator, Mapping, Any
+    TypeVar, Union, Iterable, Optional, Callable, Sequence, Tuple, Iterator, Mapping, Any, Dict
 from pathlib import Path
 from dataclasses import dataclass
 from multiprocessing import Pool, Manager
@@ -15,9 +15,6 @@ import torch
 
 
 logger = logging.getLogger(__name__)
-
-Model = TypeVar('Model')
-"""An object which the Deployer can apply to a test set."""
 
 
 @dataclass
@@ -46,7 +43,7 @@ class Run:
 RunGetter = Callable[..., Iterator[Run]]
 """A function which creates a series of runs."""
 
-Trainer = Callable[..., Model]
+Trainer = Callable[..., Learner]
 """A function which trains a model.
 
 Required kwargs:
@@ -62,7 +59,7 @@ Deployer = Callable[..., pd.DataFrame]
 """A function which deployes a model.
 
 Required kwargs:
-    model: Model:  The model to test on.
+    model: Learner:  The model to test on.
     target_label: str:  The name to be given to the result column.
     test_df: TestDF:  A dataframe specifying which tiles to deploy the model on.
     result_dir:  A folder to write intermediate results to.
@@ -268,7 +265,7 @@ def save_run_files_(run: Run, logger) -> None:
         run.test_df.to_csv(testing_set_path, index=False, compression='zip')
 
 
-def train_(train: Trainer, exp: Run, logger, **kwargs) -> Model:
+def train_(train: Trainer, exp: Run, logger, **kwargs) -> Learner:
     model_path = exp.directory/'export.pkl'
     if model_path.exists():
         logger.warning(f'{model_path} already exists, using old model!')

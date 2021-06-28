@@ -7,14 +7,14 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 
 from ..experiment import Run
-from ..config import Cohort
-from ..basic.get_runs import prepare_cohorts, get_tiles, balance_classes
+from ..basic.get_runs import prepare_cohorts, get_tiles, balance_classes, Cohort
+from ..utils import log_defaults
 
 
 logger = logging.getLogger(__name__)
 
 
-#TODO log defaults
+@log_defaults
 def get_runs(*,
         project_dir: Path,
         target_labels: Iterable[str],
