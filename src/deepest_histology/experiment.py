@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import logging
 from zipfile import BadZipFile
-from typing import TypeVar, Union, Iterable, Optional, Callable, Sequence, Tuple
+from typing import \
+    TypeVar, Union, Iterable, Optional, Callable, Sequence, Tuple, Iterator, Mapping, Any
 from pathlib import Path
 from dataclasses import dataclass
 from multiprocessing import Pool, Manager
@@ -84,6 +85,7 @@ class Coordinator:
 
 
 PathLike = Union[str, Path]
+Evaluator = Callable[..., Optional[Mapping[str, Any]]]
 
 
 def do_experiment(*,
@@ -92,14 +94,14 @@ def do_experiment(*,
         model_path: Optional[PathLike] = None,
         num_concurrent_runs: int = 4,
         devices = [torch.cuda.current_device()],
-        evaluator_groups: Sequence[Iterable[Callable]] = [],
+        evaluator_groups: Sequence[Iterable[Evaluator]] = [],
         **kwargs) -> None:
     """Runs an experiement.
-    
+
     Args:
-        project_dir: The directory to save project data in.
-        mode: how to perform the training / testing process.
-        save_models: whether or not to save the resulting models.
+        project_dir:  The directory to save project data in.
+        mode:  How to perform the training / testing process.
+        save_models:  Whether or not to save the resulting models.
     """
 
     assert num_concurrent_runs >= 1
@@ -123,35 +125,68 @@ def do_experiment(*,
         # each gpu is a assumed to have the same capabilities
         capacities = [manager.Semaphore((num_concurrent_runs+len(devices)-1)//len(devices))
                       for _ in devices]
-        runs = ({'run': run, 'devices': devices, 'capacities': capacities,  **kwds, **kwargs}
-                for run in mode.get(project_dir=project_dir, **kwargs))
+        run_args = ({'run': run, 'devices': devices, 'capacities': capacities,  **kwds, **kwargs}
+                     for run in mode.get(project_dir=project_dir, **kwargs))
 
         with Pool(num_concurrent_runs) as pool:
-            last_run = None
-            for run in pool.imap(do_run_wrapper_, runs, chunksize=1):
-                run_dir_rel = run.directory.relative_to(project_dir)
+            # only use pool if we actually want to run multiple runs in parallel
+            runs = (pool.imap(do_run_wrapper_, run_args, chunksize=1) if num_concurrent_runs > 1
+                    else (do_run_wrapper_(args) for args in run_args))
+            evaluate_runs(runs, project_dir=project_dir, evaluator_groups=evaluator_groups)
 
-                if last_run:
-                    first_differing_level = \
-                        next(i for i, (old, new) in enumerate(zip(last_run_dir_rel.parts,
-                                                                  run_dir_rel.parts))
-                               if old != new)
-                    paths_and_evaluator_groups = list(zip([*reversed(last_run_dir_rel.parents),
-                                                           last_run_dir_rel],
-                                                          evaluator_groups))
-                    run_evaluators(
-                        last_run.target, project_dir,
-                        paths_and_evaluator_groups[first_differing_level+1:])
-                last_run, last_run_dir_rel = run, run_dir_rel
-            else:
-                paths_and_evaluator_groups = list(zip([*reversed(run_dir_rel.parents), run_dir_rel],
-                                                       evaluator_groups))
-                run_evaluators(run.target, project_dir, paths_and_evaluator_groups)
+
+def evaluate_runs(
+        runs: Iterator[Run], project_dir: Path, evaluator_groups: Sequence[Iterable[Callable]]) \
+        -> None:
+    """Calls evaluation functions for each run.
+
+    Args:
+        runs:  An iterator over the already completed runs.  This iterator has to traverse the runs
+            in-order.
+        project_dir:  The root directory of the experiment.
+        evaluator_groups:  A sequence of collections of evaluation functions.
+
+    Assume we have the evaluator groups `[A, B, C]`.  Then the the evaluator groups will be invoked
+    as follows:
+
+        root/a/b
+        root/a/c   -> C(b)
+        root/a/d   -> C(c)
+        root/e/f   -> C(d), B(a)
+        root/e/g/h -> C(f)
+        root/e/g/i
+        root/e/j   -> C(g)
+                   -> C(j), B(e), A(root)
+
+    where B(a) means that all the evaluation functions in evaluator group B will be invoked on run
+    a.
+    """
+    last_run = None
+
+    for run in runs:
+        run_dir_rel = run.directory.relative_to(project_dir)
+
+        if last_run:
+            first_differing_level = \
+                next(i for i, (old, new) in enumerate(zip(last_run_dir_rel.parts,
+                                                            run_dir_rel.parts))
+                        if old != new)
+            paths_and_evaluator_groups = list(zip([*reversed(last_run_dir_rel.parents),
+                                                    last_run_dir_rel],
+                                                    evaluator_groups))
+            run_evaluators(
+                last_run.target, project_dir,
+                paths_and_evaluator_groups[first_differing_level+1:])
+        last_run, last_run_dir_rel = run, run_dir_rel
+    else:
+        paths_and_evaluator_groups = list(zip([*reversed(run_dir_rel.parents), run_dir_rel],
+                                                evaluator_groups))
+        run_evaluators(run.target, project_dir, paths_and_evaluator_groups)
 
 
 def run_evaluators(
         target_label: str, project_dir: Path,
-        paths_and_evaluator_groups: Sequence[Tuple[Path, Iterable[Callable]]]):
+        paths_and_evaluator_groups: Sequence[Tuple[Path, Iterable[Evaluator]]]):
     for path, evaluators in reversed(paths_and_evaluator_groups):
         logger.info(f'Evaluating {path}')
         eval_dir = project_dir/path
@@ -195,9 +230,7 @@ def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
 
     for device, capacity in zip(devices, capacities):
         # search for a free gpu
-        if not capacity.acquire(blocking=False):
-            continue
-
+        if not capacity.acquire(blocking=False): continue
         try:
             with torch.cuda.device(device):
                 learn = (train_(train=mode.train, exp=run, logger=logger, **kwargs)
@@ -207,9 +240,9 @@ def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
                 if mode.deploy and run.test_df is not None:
                     deploy_(deploy=mode.deploy, learn=learn, run=run, model_path=model_path, logger=logger,
                             **kwargs)
-        finally:
-            capacity.release()
-            break
+
+                break
+        finally: capacity.release()
     else:
         raise RuntimeError('Could not find a free GPU!')
 
