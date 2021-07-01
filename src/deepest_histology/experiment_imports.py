@@ -6,7 +6,7 @@ logging.getLogger().handlers[0].setLevel(logging.INFO)
 
 from pathlib import Path
 from deepest_histology.experiment import do_experiment
-from deepest_histology.config import Cohort
+from deepest_histology.basic.get_runs import Cohort
 from deepest_histology.evaluate import *
 
 from deepest_histology.basic import train_test, train_only, deploy_only

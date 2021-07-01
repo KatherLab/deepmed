@@ -1,13 +1,13 @@
+import shutil
+import os
 from typing import Callable, Iterable
 import logging
 from pathlib import Path
+from fastai.callback.tracker import TrackerCallback
 
 import torch
 import pandas as pd
 from torch import nn
-from torch import optim
-from sklearn import preprocessing
-from tqdm import tqdm
 
 from fastai.vision.all import (
     Optimizer, Adam, Learner, DataBlock, ImageBlock, CategoryBlock, ColReader, ColSplitter,
@@ -15,9 +15,6 @@ from fastai.vision.all import (
     CSVLogger, CrossEntropyLossFlat, aug_transforms)
 
 from ..utils import log_defaults
-
-
-logger = logging.getLogger(__name__)
 
 
 @log_defaults
@@ -29,15 +26,12 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
           lr: float = 2e-3,
           patience: int = 3,
           num_workers: int = 0,
-          device: torch.cuda._device_t = None,
           tfms: Callable = aug_transforms(
               flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224),
           metrics: Iterable[Callable] = [BalancedAccuracy(), RocAucBinary()],
           monitor: str = 'valid_loss',
+          logger = logging,
           **kwargs) -> Learner:
-
-    if device:
-        torch.cuda.set_device(device)
 
     dblock = DataBlock(blocks=(ImageBlock, CategoryBlock),
                        get_x=ColReader('tile_path'),
@@ -65,11 +59,49 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
         metrics=metrics,
         opt_func=opt)
 
-    learn.fine_tune(epochs=max_epochs, base_lr=lr,
-                    cbs=[SaveModelCallback(monitor=monitor),
-                         EarlyStoppingCallback(monitor=monitor, min_delta=0.001,
-                                               patience=patience),
-                         CSVLogger()])
+    cbs = [
+        SaveModelCallback(monitor=monitor, fname=f'best_{monitor}', reset_on_fit=False),
+        SaveModelCallback(every_epoch=True, with_opt=True, reset_on_fit=False),
+        EarlyStoppingCallback(
+            monitor=monitor, min_delta=0.001, patience=patience, reset_on_fit=False),
+        CSVLogger(append=True)]
+
+    if (result_dir/'models'/f'best_{monitor}.pth').exists():
+        fit_from_checkpoint(
+            learn=learn, result_dir=result_dir, lr=lr/2, max_epochs=max_epochs, cbs=cbs,
+            monitor=monitor, logger=logger)
+    else:
+        learn.fine_tune(epochs=max_epochs, base_lr=lr, cbs=cbs)
+
     learn.export()
 
+    shutil.rmtree(result_dir/'models')
+
     return learn
+
+
+def fit_from_checkpoint(
+        learn: Learner, result_dir: Path, lr: float, max_epochs: int, cbs: Iterable[Callable],
+        monitor: str, logger) \
+        -> None:
+    logger.info('Continuing from checkpoint...')
+
+    # get best performance so far
+    history_df = pd.read_csv(result_dir/'history.csv')
+    scores = pd.to_numeric(history_df[monitor], errors='coerce')
+    high_score = scores.min() if 'loss' in monitor or 'error' in monitor else scores.max()
+    logger.info(f'Best {monitor} up to checkpoint: {high_score}')
+
+    # update tracker callback's high scores
+    for cb in cbs:
+        if isinstance(cb, TrackerCallback):
+            cb.best = high_score
+
+    # load newest model
+    name = max((result_dir/'models').glob('model_*.pth'), key=os.path.getctime).stem
+    learn.load(name, with_opt=True, strict=True)
+
+    remaining_epochs = max_epochs - int(name.split('_')[1])
+    logger.info(f'{remaining_epochs = }')
+    learn.unfreeze()
+    learn.fit_one_cycle(remaining_epochs, slice(lr/100, lr), pct_start=.3, div=5., cbs=cbs)

@@ -1,6 +1,7 @@
 import random
 import logging
-from typing import Iterable, Sequence, List, Optional, Callable, Any
+from dataclasses import dataclass, fields
+from typing import Iterable, Sequence, Iterator, List, Any, Union
 from pathlib import Path
 from numbers import Number
 
@@ -11,15 +12,30 @@ from sklearn import preprocessing
 from tqdm import tqdm
 
 from ..experiment import Run
-from ..config import Cohort
 from ..utils import log_defaults
 
 
 logger = logging.getLogger(__name__)
 
 
+PathLike = Union[str, Path]
+
+
+@dataclass
+class Cohort:
+    tile_dir: Path
+    clini_path: Path
+    slide_path: Path
+
+    def __post_init__(self):
+        """Coerces attributes."""
+        for field in fields(self):
+            if not isinstance((value := getattr(self, field.name)), field.type):
+                setattr(self, field.name, field.type(value))
+
+
 @log_defaults
-def create_runs(*,
+def get_runs(
         project_dir: Path,
         target_labels: Iterable[str],
         train_cohorts: Iterable[Cohort] = [],
@@ -30,7 +46,7 @@ def create_runs(*,
         n_bins: int = 2,
         na_values: Iterable[Any] = [],
         min_support: int = 10,
-        **kwargs) -> Sequence[Run]:
+        **kwargs) -> Iterator[Run]:
     """Creates runs for a basic test-deploy procedure.
 
     This function will generate one training run per target label.  Due to large in-patient
@@ -58,8 +74,6 @@ def create_runs(*,
         min_support: Least amount of class samples required for the class to be included in
             training. Classes with less support are dropped.
     """
-
-    runs = []
 
     for target_label in target_labels:
         logger.info(f'For target {target_label}:')
@@ -118,12 +132,10 @@ def create_runs(*,
         else:
             test_df = None
 
-        runs.append(Run(directory=project_dir/target_label,
-                        target=target_label,
-                        train_df=train_df,
-                        test_df=test_df))
-
-    return runs
+        yield Run(directory=project_dir/target_label,
+                  target=target_label,
+                  train_df=train_df,
+                  test_df=test_df)
 
 
 def prepare_cohorts(
@@ -178,8 +190,8 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
     cohort_dfs: List[pd.DataFrame] = []
 
     for cohort in cohorts:
-        logger.info(f'For cohort {cohort.root_dir}')
-        clini_path, slide_path, tile_dir = cohort.clini_table, cohort.slide_table, cohort.tile_dir
+        logger.info(f'For cohort {cohort.tile_dir}')
+        clini_path, slide_path, tile_dir = cohort.clini_path, cohort.slide_path, cohort.tile_dir
 
         clini_df = (pd.read_csv(clini_path, dtype=str) if clini_path.suffix == '.csv'
                     else pd.read_excel(clini_path, dtype=str))
@@ -200,7 +212,6 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
 
         # only keep patients which have slides
         cohort_df = clini_df.merge(slide_df, on='PATIENT')
-        cohort_df['cohort'] = cohort.root_dir.name
         logger.info(f'#slides after removing slides without patient data: {len(cohort_df)}')
 
         # filter n/a values
