@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 import logging
 from zipfile import BadZipFile
-from typing import \
-    TypeVar, Union, Iterable, Optional, Callable, Sequence, Tuple, Iterator, Mapping, Any, Dict
+from typing import Union, Iterable, Optional, Callable, Sequence, Tuple, Iterator
 from pathlib import Path
 from dataclasses import dataclass
 from multiprocessing import Pool, Manager
 from multiprocessing.synchronize import Semaphore
+from functools import partial
 
 from fastai.vision.all import Learner, load_learner
 
 import pandas as pd
+from pandas.core.indexes.multi import MultiIndex
 import torch
+
+from .utils import Lazy
 
 
 logger = logging.getLogger(__name__)
@@ -81,7 +84,7 @@ class Coordinator:
 
 
 PathLike = Union[str, Path]
-Evaluator = Callable[..., Optional[Mapping[str, Any]]]
+Evaluator = Callable[..., Optional[pd.DataFrame]]
 
 
 def do_experiment(*,
@@ -126,8 +129,10 @@ def do_experiment(*,
 
         with Pool(num_concurrent_runs) as pool:
             # only use pool if we actually want to run multiple runs in parallel
-            runs = (pool.imap(do_run_wrapper_, run_args, chunksize=1) if num_concurrent_runs > 1
-                    else (do_run_wrapper_(args) for args in run_args))
+            runs = filter(
+                lambda x: x is not None,
+                (pool.imap(do_run_wrapper_, run_args, chunksize=1) if num_concurrent_runs > 1
+                 else (do_run_wrapper_(args) for args in run_args)))
             evaluate_runs(runs, project_dir=project_dir, evaluator_groups=evaluator_groups)
 
 
@@ -141,6 +146,8 @@ def evaluate_runs(
             in-order.
         project_dir:  The root directory of the experiment.
         evaluator_groups:  A sequence of collections of evaluation functions.
+
+    TODO a more detailed description
 
     Assume we have the evaluator groups `[A, B, C]`.  Then the the evaluator groups will be invoked
     as follows:
@@ -186,10 +193,38 @@ def run_evaluators(
     for path, evaluators in reversed(paths_and_evaluator_groups):
         logger.info(f'Evaluating {path}')
         eval_dir = project_dir/path
-        if evaluators:
-            preds_df = get_preds_df(eval_dir)
-        for evaluator in evaluators:
-            evaluator(target_label, preds_df, eval_dir)
+        if not evaluators:
+            continue
+
+        preds_df = Lazy(partial(get_preds_df, result_dir=eval_dir))
+
+        #TODO rewrite this functionally (its nothing but a reduce operation)
+        stats_df = None
+        for evaluate in evaluators:
+            if (df := evaluate(target_label, preds_df, eval_dir)) is not None:
+                if stats_df is None:
+                    stats_df = df
+                else:
+                    # make sure the two dfs have the same column level
+                    levels = max(stats_df.columns.nlevels, df.columns.nlevels)
+                    stats_df = raise_df_column_level(stats_df, levels)
+                    df = raise_df_column_level(df, levels)
+                    stats_df = stats_df.join(df)
+        if stats_df is not None:
+            stats_df.to_csv(eval_dir/'stats.csv')
+
+
+def raise_df_column_level(df, level):
+    if df.columns.empty:
+        columns = pd.MultiIndex.from_product([[]] * level)
+    elif isinstance(df.columns, pd.MultiIndex):
+        columns = pd.MultiIndex.from_tuples([col + (None,)*(level-df.columns.nlevels)
+                                             for col in df.columns])
+    else:
+        columns = pd.MultiIndex.from_tuples([(col,) + (None,)*(level-df.columns.nlevels)
+                                             for col in df.columns])
+
+    return pd.DataFrame(df.values, index=df.index, columns=columns)
 
 
 def get_preds_df(result_dir: Path) -> pd.DataFrame:
@@ -203,8 +238,8 @@ def get_preds_df(result_dir: Path) -> pd.DataFrame:
             return get_preds_df(result_dir)
     else:
         # create an accumulated predictions df if there isn't one already
-        #TODO also do this if the already existing one is older than the ones in the child dirs
         dfs = []
+        #TODO do this recursively if needed
         for df_path in result_dir.glob('*/predictions.csv.zip'):
             df = pd.read_csv(df_path)
             # column which tells us which subset these predictions are from
@@ -248,10 +283,10 @@ def do_run_wrapper_(kwds):
     #TODO explain!
     try:
         do_run(**kwds)
+        return kwds['run']
     except:
         logger.exception(f'Exception in run {kwds["run"]}!')
-    finally:
-        return kwds['run']
+        return None
 
 
 def save_run_files_(run: Run, logger) -> None:
