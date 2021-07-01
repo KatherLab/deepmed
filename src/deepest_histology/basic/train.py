@@ -11,7 +11,7 @@ from torch import nn
 
 from fastai.vision.all import (
     Optimizer, Adam, Learner, DataBlock, ImageBlock, CategoryBlock, ColReader, ColSplitter,
-    resnet18, cnn_learner, BalancedAccuracy, RocAucBinary, SaveModelCallback, EarlyStoppingCallback,
+    resnet18, cnn_learner, BalancedAccuracy, RocAuc, SaveModelCallback, EarlyStoppingCallback,
     CSVLogger, CrossEntropyLossFlat, aug_transforms)
 
 from ..utils import log_defaults
@@ -28,7 +28,7 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
           num_workers: int = 0,
           tfms: Callable = aug_transforms(
               flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224),
-          metrics: Iterable[Callable] = [BalancedAccuracy(), RocAucBinary()],
+          metrics: Iterable[Callable] = [BalancedAccuracy(), RocAuc(multi_class='ovr')],
           monitor: str = 'valid_loss',
           logger = logging,
           **kwargs) -> Learner:
