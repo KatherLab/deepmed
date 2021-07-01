@@ -15,10 +15,11 @@ from pandas.core.indexes.multi import MultiIndex
 import torch
 
 from .utils import Lazy
+from .metrics import Metric
 
 
 __all__ = [
-    'Run', 'RunGetter', 'Trainer', 'Deployer', 'Coordinator' 'PathLike', 'Metric', 'do_experiment']
+    'Run', 'RunGetter', 'Trainer', 'Deployer', 'Coordinator' 'PathLike', 'do_experiment']
 
 
 logger = logging.getLogger(__name__)
@@ -88,7 +89,6 @@ class Coordinator:
 
 
 PathLike = Union[str, Path]
-Metric = Callable[..., Optional[pd.DataFrame]]
 
 
 def do_experiment(*,

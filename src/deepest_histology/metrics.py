@@ -1,57 +1,124 @@
+"""Metrics to evaluate a model's performance with.
+
+During evaluation, each metric will be called with three arguments:
+ 1. The target label for which the metric is to be evaluated.
+ 2. A predictions data frame, containing the complete testing set data frame and additional columns
+    titled ``{target_label}_{class_}``, which contain the class scores as well as a column
+    ``{target_label}_pred`` which contains a hard predicion for that item.
+ 3. A path the metric can store results to.
+
+In general, metrics are implemented in two ways:
+ 1. As a function. Some of these functions may have additional arguments; these can be set using
+    ``functools.partial``, e.g. ``partial(f1, min_tpr=.95)``.
+ 2. As a function object. These metrics usually encode meta-metrics, i.e. metrics which modify other
+    metrics.
+
+Metrics may return a ``DataFrame``, which will be written to the result directory inside the file
+``stats.csv``.
+"""
+
 from dataclasses import dataclass
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Callable
 from pathlib import Path
+from enum import Enum, auto
 
 import pandas as pd
 from PIL import Image
 
 import sklearn.metrics as skm
 
-from .experiment import Metric
-
 __all__ = [
-    'Grouped', 'SubGrouped', 'aggregate_stats', 'f1', 'confusion_matrix', 'auroc', 'count',
-    'top_tiles', 'roc']
+    'Metric', 'Grouped', 'SubGrouped', 'aggregate_stats', 'f1', 'confusion_matrix', 'auroc',
+    'count', 'top_tiles', 'roc', 'GroupMode']
+
+
+Metric = Callable[[str, pd.DataFrame, Path], Optional[pd.DataFrame]]
+
+class GroupMode(Enum):
+    """Describes how to calculate grouped predictions (see Grouped)."""
+    prediction_rate = auto()
+    """The group class scores are set to the ratio of the elements' predictions."""
+    mean = auto()
+    """The group class scores are set to the mean of the elements' scores."""
 
 
 @dataclass
 class Grouped:
-    evaluate: Metric
-    by: str = 'PATIENT'
+    """Calculates a metric with the data grouped on an attribute.
 
-    def __call__(self, target_label, preds_df, result_dir, **kwargs):
+    It's not always meaningful to calculate metrics on the sample level. This function first
+    accumulates the predictions according to another property of the sample (as specified in the
+    clinical table), grouping samples with the same value together.  Furthermore, the result dir
+    given to the result dir will be extended by a subdirectory named after the grouped-by property.
+    """
+    metric: Metric
+    """Metric to evaluate on the grouped predictions."""
+    mode: GroupMode = GroupMode.prediction_rate
+    """Mode to group predictions."""
+    by: str = 'PATIENT'
+    """Label to group the predictions by."""
+
+    def __call__(self, target_label: str, preds_df: pd.DataFrame, result_dir: Path) \
+            -> Optional[pd.DataFrame]:
         grouped_df = preds_df.groupby(self.by).first()
         for class_ in preds_df[target_label].unique():
-            grouped_df[f'{target_label}_{class_}'] = (
-                    preds_df.groupby(self.by)[f'{target_label}_pred']
-                            .agg(lambda x: sum(x == class_) / len(x)))
+            if self.mode == GroupMode.prediction_rate:
+                grouped_df[f'{target_label}_{class_}'] = (
+                        preds_df.groupby(self.by)[f'{target_label}_pred']
+                                .agg(lambda x: sum(x == class_) / len(x)))
+            elif self.mode == GroupMode.mean:
+                grouped_df[f'{target_label}_{class_}'] = \
+                        preds_df.groupby(self.by)[f'{target_label}_pred'].mean()
 
         group_dir = result_dir/self.by
         group_dir.mkdir(exist_ok=True)
-        df = self.evaluate(target_label, grouped_df, group_dir, **kwargs)
-        if df is not None:
+        if (df := self.metric(target_label, grouped_df, group_dir)) is not None:
             columns = pd.MultiIndex.from_product([df.columns, [self.by]])
             return pd.DataFrame(df.values, index=df.index, columns=columns)
+
+        return None
 
 
 @dataclass
 class SubGrouped:
-    evaluate: Metric
-    by: str = 'PATIENT'
-    def __call__(self, target_label, preds_df, result_dir, **kwargs):
-        results = {}
+    """Calculates a metric for different subgroups."""
+    metric: Metric
+    by: str
+    """The property to group by.
+
+    The metric will be calculated seperately for each distinct label of this property.
+    """
+    def __call__(self, target_label: str, preds_df: pd.DataFrame, result_dir: Path) \
+            -> Optional[pd.DataFrame]:
+        dfs = []
         for group, group_df in preds_df.groupby(self.by):
             group_dir = result_dir/group
             group_dir.mkdir(parents=True, exist_ok=True)
-            if (group_results := self.evaluate(target_label, group_df, group_dir, **kwargs)):
-                for eval_name, score in group_results.items():
-                    results[f'{eval_name}_{group}'] = score
-        return results
+            if (df := self.metric(target_label, group_df, group_dir)) is not None:
+                columns = pd.MultiIndex.from_product([df.columns, [group]])
+                dfs.append(pd.DataFrame(df.values, index=df.index, columns=columns))
+
+        if dfs:
+            return pd.concat(dfs)
+
+        return None
 
 
 def aggregate_stats(
-        _target_label, _preds_df, result_dir: Path, group_levels: Optional[Iterable[int]] = None) \
-        -> None:
+        _target_label, _preds_df, result_dir: Path, group_levels: Iterable[int] = []) \
+        -> pd.DataFrame:
+    """Accumulates stats from subdirectories.
+
+    By default, this function simply concatenates the contents of all the ``stats.csv`` files in
+    ``result_dir``'s immediate subdirectories.  Each of the subdirectories' names will be added as
+    to the index at its top level.
+
+    This function may also aggregate over metrics: if the ``group_levels`` option is given, the
+    stats will be grouped by the specified index levels.
+
+    Args:
+      group_levels: Iterable[int]:  (Default value = [])
+    """
     # collect all parent stats dfs
     dfs = []
     df_paths = list(result_dir.glob('*/stats.csv'))
@@ -111,9 +178,11 @@ def f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path,
        min_tpr: Optional[float] = None) \
        -> pd.DataFrame:
     """Calculates the F1 score.
-    
-    If min_tpr is not given, a threshold which maximizes the F1 score is selected; otherwise the
-    threshold which guarantees a tpr of at least min_tpr is used.
+
+    Args:
+      min_tpr: Optional[float]:  (Default value = None)  If min_tpr is not given, a threshold which
+        maximizes the F1 score is selected; otherwise the threshold which guarantees a tpr of at
+        least min_tpr is used.
     """
     y_true = preds_df[target_label]
 
@@ -132,6 +201,13 @@ def confusion_matrix(
         target_label: str, preds_df: pd.DataFrame, result_dir: Path,
         min_tpr: Optional[float] = None) \
         -> None:
+    """Generates a confusion matrix for each class label.
+
+    Args:
+      min_tpr: Optional[float]:  (Default value = None)  The minimum true positive rate the
+        confusion matrix shall have for each class.  If None, the true positive rate maximizing the
+        F1 score will be calculated.
+    """
     classes = preds_df[target_label].unique()
     if len(classes) == 2:
         for class_ in classes:
@@ -162,11 +238,19 @@ def confusion_matrix(
 
 
 def _get_thresh(target_label: str, preds_df: pd.DataFrame, pos_label: str,
-               min_tpr: Optional[float] = None) -> float:
+                min_tpr: Optional[float] = None) -> float:
     """Calculates a classification threshold for a class.
-    
-    If `min_tpr` is given, the lowest threshold to guarantee the requested tpr is returned.  Else, 
+
+    If `min_tpr` is given, the lowest threshold to guarantee the requested tpr is returned.  Else,
     the threshold optimizing the F1 score will be returned.
+
+    Args:
+      pos_label: str:  The class to optimize for.
+      min_tpr: Optional[float]:  (Default value = None)  The minimum required true prositive rate,
+        or the threshold which maximizes the F1 score if None.
+
+    Returns:
+      The optimal theshold.
     """
     fprs, tprs, threshs = skm.roc_curve(
         (preds_df[target_label] == pos_label)*1., preds_df[f'{target_label}_{pos_label}'])
@@ -180,7 +264,8 @@ def _get_thresh(target_label: str, preds_df: pd.DataFrame, pos_label: str,
                 preds_df[target_label] == pos_label, preds_df[f'{target_label}_{pos_label}'] > t))
 
 
-def auroc(target_label: str, preds_df: pd.DataFrame, _result_dir: Path) -> pd.DataFrame:
+def auroc(target_label: str, preds_df: pd.DataFrame, _result_dir) -> pd.DataFrame:
+    """Calculates the one-vs-rest AUROC for each class of the target label."""
     y_true = preds_df[target_label]
     df = pd.DataFrame.from_dict(
         {class_: [skm.roc_auc_score(y_true==class_, preds_df[f'{target_label}_{class_}'])]
@@ -189,8 +274,8 @@ def auroc(target_label: str, preds_df: pd.DataFrame, _result_dir: Path) -> pd.Da
     return df
 
 
-def count(target_label: str, preds_df: pd.DataFrame, _result_dir: Path, count_label: str = 'PATIENT') -> pd.DataFrame:
-    """Calculates the number of training instances, both in total and per class."""
+def count(target_label: str, preds_df: pd.DataFrame, _result_dir) -> pd.DataFrame:
+    """Calculates the number of testing instances for each class."""
     counts = preds_df[target_label].value_counts()
     return pd.DataFrame(counts.values, index=counts.index, columns=['count'])
 
@@ -199,7 +284,7 @@ def top_tiles(
         target_label: str, preds_df: pd.DataFrame, result_dir: Path,
         n_patients: int = 4, n_tiles: int = 4, patient_label: str = 'PATIENT') -> None:
     """Generates a grid of the best scoring tiles for each class.
-    
+
     The function outputs a `n_patients` × `n_tiles` grid of tiles, where each row contains the
     `n_tiles` highest scoring tiles for one of the `n_patients` best-classified patients.
     """
@@ -227,7 +312,7 @@ from sklearn.metrics import auc
 from sklearn.metrics import roc_curve, auc, RocCurveDisplay
 import scipy.stats as st
 
-def plot_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: float = 0.95):
+def _plot_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: float = 0.95):
     # gracefully stolen from <https://scikit-learn.org/stable/auto_examples/model_selection/plot_roc_crossval.html>
     tprs = []
     aucs = []
@@ -268,8 +353,8 @@ def plot_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: floa
            title=f'{target_label}: {pos_label} ROC')
     ax.legend(loc="lower right")
 
-    
-def plot_simple_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: float = 0.95):
+
+def _plot_simple_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: float = 0.95):
     # gracefully stolen from <https://scikit-learn.org/stable/auto_examples/model_selection/plot_roc_crossval.html>
     fpr, tpr, _ = roc_curve((df[target_label] == pos_label)*1., df[f'{target_label}_{pos_label}'])
 
@@ -287,14 +372,15 @@ def plot_simple_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, con
     ax.legend(loc="lower right")
 
 
-def roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path, **_kwargs) -> None:
+def roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path) -> None:
+    """Creates a one-vs-all ROC curve plot for each class."""
     y_true = preds_df[target_label]
     for class_ in y_true.unique():
         fig, ax = plt.subplots()
         if 'fold' in preds_df:
-            plot_roc(preds_df, target_label, class_, ax=ax, conf=.95)
+            _plot_roc(preds_df, target_label, class_, ax=ax, conf=.95)
         else:
-            plot_simple_roc(preds_df, target_label, class_, ax=ax, conf=.95)
+            _plot_simple_roc(preds_df, target_label, class_, ax=ax, conf=.95)
 
         fig.savefig(result_dir/f'roc_{target_label}_{class_}.svg')
         plt.close()

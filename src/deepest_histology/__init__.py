@@ -1,1 +1,1 @@
-from . import basic, crossval, evaluate
+from . import basic, crossval, metrics
