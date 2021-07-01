@@ -17,6 +17,10 @@ import torch
 from .utils import Lazy
 
 
+__all__ = [
+    'Run', 'RunGetter', 'Trainer', 'Deployer', 'Coordinator' 'PathLike', 'Metric', 'do_experiment']
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -84,7 +88,7 @@ class Coordinator:
 
 
 PathLike = Union[str, Path]
-Evaluator = Callable[..., Optional[pd.DataFrame]]
+Metric = Callable[..., Optional[pd.DataFrame]]
 
 
 def do_experiment(*,
@@ -93,7 +97,7 @@ def do_experiment(*,
         model_path: Optional[PathLike] = None,
         num_concurrent_runs: int = 4,
         devices = [torch.cuda.current_device()],
-        evaluator_groups: Sequence[Iterable[Evaluator]] = [],
+        evaluator_groups: Sequence[Iterable[Metric]] = [],
         **kwargs) -> None:
     """Runs an experiement.
 
@@ -131,12 +135,12 @@ def do_experiment(*,
             # only use pool if we actually want to run multiple runs in parallel
             runs = filter(
                 lambda x: x is not None,
-                (pool.imap(do_run_wrapper_, run_args, chunksize=1) if num_concurrent_runs > 1
-                 else (do_run_wrapper_(args) for args in run_args)))
-            evaluate_runs(runs, project_dir=project_dir, evaluator_groups=evaluator_groups)
+                (pool.imap(_do_run_wrapper, run_args, chunksize=1) if num_concurrent_runs > 1
+                 else (_do_run_wrapper(args) for args in run_args)))
+            _evaluate_runs(runs, project_dir=project_dir, evaluator_groups=evaluator_groups)
 
 
-def evaluate_runs(
+def _evaluate_runs(
         runs: Iterator[Run], project_dir: Path, evaluator_groups: Sequence[Iterable[Callable]]) \
         -> None:
     """Calls evaluation functions for each run.
@@ -177,26 +181,26 @@ def evaluate_runs(
             paths_and_evaluator_groups = list(zip([*reversed(last_run_dir_rel.parents),
                                                     last_run_dir_rel],
                                                     evaluator_groups))
-            run_evaluators(
+            _run_evaluators(
                 last_run.target, project_dir,
                 paths_and_evaluator_groups[first_differing_level+1:])
         last_run, last_run_dir_rel = run, run_dir_rel
     else:
         paths_and_evaluator_groups = list(zip([*reversed(run_dir_rel.parents), run_dir_rel],
                                                 evaluator_groups))
-        run_evaluators(run.target, project_dir, paths_and_evaluator_groups)
+        _run_evaluators(run.target, project_dir, paths_and_evaluator_groups)
 
 
-def run_evaluators(
+def _run_evaluators(
         target_label: str, project_dir: Path,
-        paths_and_evaluator_groups: Sequence[Tuple[Path, Iterable[Evaluator]]]):
+        paths_and_evaluator_groups: Sequence[Tuple[Path, Iterable[Metric]]]):
     for path, evaluators in reversed(paths_and_evaluator_groups):
         logger.info(f'Evaluating {path}')
         eval_dir = project_dir/path
         if not evaluators:
             continue
 
-        preds_df = Lazy(partial(get_preds_df, result_dir=eval_dir))
+        preds_df = Lazy(partial(_get_preds_df, result_dir=eval_dir))
 
         #TODO rewrite this functionally (its nothing but a reduce operation)
         stats_df = None
@@ -207,14 +211,14 @@ def run_evaluators(
                 else:
                     # make sure the two dfs have the same column level
                     levels = max(stats_df.columns.nlevels, df.columns.nlevels)
-                    stats_df = raise_df_column_level(stats_df, levels)
-                    df = raise_df_column_level(df, levels)
+                    stats_df = _raise_df_column_level(stats_df, levels)
+                    df = _raise_df_column_level(df, levels)
                     stats_df = stats_df.join(df)
         if stats_df is not None:
             stats_df.to_csv(eval_dir/'stats.csv')
 
 
-def raise_df_column_level(df, level):
+def _raise_df_column_level(df, level):
     if df.columns.empty:
         columns = pd.MultiIndex.from_product([[]] * level)
     elif isinstance(df.columns, pd.MultiIndex):
@@ -227,7 +231,7 @@ def raise_df_column_level(df, level):
     return pd.DataFrame(df.values, index=df.index, columns=columns)
 
 
-def get_preds_df(result_dir: Path) -> pd.DataFrame:
+def _get_preds_df(result_dir: Path) -> pd.DataFrame:
     # load predictions
     if (preds_path := result_dir/'predictions.csv.zip').exists():
         try:
@@ -235,7 +239,7 @@ def get_preds_df(result_dir: Path) -> pd.DataFrame:
         except BadZipFile:
             # delete file and try to regenerate it
             preds_path.unlink()
-            return get_preds_df(result_dir)
+            return _get_preds_df(result_dir)
     else:
         # create an accumulated predictions df if there isn't one already
         dfs = []
@@ -252,24 +256,24 @@ def get_preds_df(result_dir: Path) -> pd.DataFrame:
     return preds_df
 
 
-def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
+def _do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
            devices: Iterable, capacities: Iterable[Semaphore] = [], **kwargs) -> None:
     logger = logging.getLogger(str(run.directory.relative_to(project_dir)))
     logger.info(f'Starting run')
 
-    save_run_files_(run, logger=logger)
+    _save_run_files(run, logger=logger)
 
     for device, capacity in zip(devices, capacities):
         # search for a free gpu
         if not capacity.acquire(blocking=False): continue   # type: ignore
         try:
             with torch.cuda.device(device):
-                learn = (train_(train=mode.train, exp=run, logger=logger, **kwargs)
+                learn = (_train(train=mode.train, exp=run, logger=logger, **kwargs)
                         if mode.train and run.train_df is not None
                         else None)
 
                 if mode.deploy and run.test_df is not None:
-                    deploy_(deploy=mode.deploy, learn=learn, run=run, model_path=model_path, logger=logger,
+                    _deploy(deploy=mode.deploy, learn=learn, run=run, model_path=model_path, logger=logger,
                             **kwargs)
 
                 break
@@ -279,17 +283,17 @@ def do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
 
 
 
-def do_run_wrapper_(kwds):
+def _do_run_wrapper(kwds):
     #TODO explain!
     try:
-        do_run(**kwds)
+        _do_run(**kwds)
         return kwds['run']
     except:
         logger.exception(f'Exception in run {kwds["run"]}!')
         return None
 
 
-def save_run_files_(run: Run, logger) -> None:
+def _save_run_files(run: Run, logger) -> None:
     logger.info(f'Saving training/testing data for run {run.directory}...')
     run.directory.mkdir(exist_ok=True, parents=True)
     if run.train_df is not None and \
@@ -300,7 +304,7 @@ def save_run_files_(run: Run, logger) -> None:
         run.test_df.to_csv(testing_set_path, index=False, compression='zip')
 
 
-def train_(train: Trainer, exp: Run, logger, **kwargs) -> Learner:
+def _train(train: Trainer, exp: Run, logger, **kwargs) -> Learner:
     model_path = exp.directory/'export.pkl'
     if model_path.exists():
         logger.warning(f'{model_path} already exists, using old model!')
@@ -316,7 +320,7 @@ def train_(train: Trainer, exp: Run, logger, **kwargs) -> Learner:
     return learn
 
 
-def deploy_(deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Optional[PathLike],
+def _deploy(deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Optional[PathLike],
             logger, **kwargs) -> pd.DataFrame:
     preds_path = run.directory/'predictions.csv.zip'
     if preds_path.exists():
@@ -325,7 +329,7 @@ def deploy_(deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Op
 
     if not learn:
         logger.info('Loading model')
-        learn = load_learner_device(model_path or run.directory/'export.pkl')
+        learn = _load_learner_to_device(model_path or run.directory/'export.pkl')
 
     logger.info('Getting predictions')
     preds_df = deploy(learn=learn,
@@ -339,7 +343,7 @@ def deploy_(deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Op
     return preds_df
 
 
-def load_learner_device(fname, device=None):
+def _load_learner_to_device(fname, device=None):
     """Loads a learner to a specific device."""
     device = torch.device(device or torch.cuda.current_device())
     res = torch.load(fname, map_location=device)

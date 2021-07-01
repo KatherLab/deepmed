@@ -16,6 +16,8 @@ from fastai.vision.all import (
 
 from ..utils import log_defaults
 
+__all__ = ['train', 'fit_from_checkpoint']
+
 
 @log_defaults
 def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,

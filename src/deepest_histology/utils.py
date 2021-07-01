@@ -3,6 +3,8 @@ import logging
 from typing import Callable, Any
 from functools import wraps, cached_property
 
+__all__ = ['log_defaults', 'Lazy']
+
 
 def log_defaults(func):
     """Decorator which logs used default values of parameters of a function."""

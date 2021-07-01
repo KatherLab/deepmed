@@ -7,12 +7,16 @@ from PIL import Image
 
 import sklearn.metrics as skm
 
-from .experiment import Evaluator
+from .experiment import Metric
+
+__all__ = [
+    'Grouped', 'SubGrouped', 'aggregate_stats', 'f1', 'confusion_matrix', 'auroc', 'count',
+    'top_tiles', 'roc']
 
 
 @dataclass
 class Grouped:
-    evaluate: Evaluator
+    evaluate: Metric
     by: str = 'PATIENT'
 
     def __call__(self, target_label, preds_df, result_dir, **kwargs):
@@ -32,7 +36,7 @@ class Grouped:
 
 @dataclass
 class SubGrouped:
-    evaluate: Evaluator
+    evaluate: Metric
     by: str = 'PATIENT'
     def __call__(self, target_label, preds_df, result_dir, **kwargs):
         results = {}
@@ -52,7 +56,7 @@ def aggregate_stats(
     dfs = []
     df_paths = list(result_dir.glob('*/stats.csv'))
     for df_path in df_paths:
-        header, index_col = get_header_and_index_col(df_path)
+        header, index_col = _get_header_and_index_col(df_path)
         dfs.append(pd.read_csv(df_path, header=header, index_col=index_col))
     stats_df = pd.concat(dfs, keys=[path.parent.name for path in df_paths])
 
@@ -91,7 +95,7 @@ def aggregate_stats(
     return stats_df
 
 
-def get_header_and_index_col(csv_path: Path):
+def _get_header_and_index_col(csv_path: Path):
     """Gets the range of header rows and index columns."""
     #FIXME bad, bad evil hack
     with open(csv_path) as f:
@@ -115,7 +119,7 @@ def f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path,
 
     stats = {}
     for class_ in y_true.unique():
-        thresh = get_thresh(target_label, preds_df, class_, min_tpr=min_tpr)
+        thresh = _get_thresh(target_label, preds_df, class_, min_tpr=min_tpr)
 
         stats[class_] = \
             skm.f1_score(y_true == class_, preds_df[f'{target_label}_{class_}'] >= thresh)
@@ -131,7 +135,7 @@ def confusion_matrix(
     classes = preds_df[target_label].unique()
     if len(classes) == 2:
         for class_ in classes:
-            thresh = get_thresh(target_label, preds_df, pos_label=class_, min_tpr=min_tpr)
+            thresh = _get_thresh(target_label, preds_df, pos_label=class_, min_tpr=min_tpr)
             y_true = preds_df[target_label] == class_
             y_pred = preds_df[f'{target_label}_{class_}'] >= thresh
             cm = skm.confusion_matrix(y_true, y_pred)
@@ -157,7 +161,7 @@ def confusion_matrix(
         plt.close()
 
 
-def get_thresh(target_label: str, preds_df: pd.DataFrame, pos_label: str,
+def _get_thresh(target_label: str, preds_df: pd.DataFrame, pos_label: str,
                min_tpr: Optional[float] = None) -> float:
     """Calculates a classification threshold for a class.
     

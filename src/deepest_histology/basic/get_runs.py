@@ -14,6 +14,8 @@ from tqdm import tqdm
 from ..experiment import Run
 from ..utils import log_defaults
 
+__all__ = ['Cohort', 'get_runs']
+
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +86,7 @@ def get_runs(
             logger.warning(f'{training_set_path} already exists, using old training set!')
             train_df = pd.read_csv(training_set_path)
         elif train_cohorts:
-            cohorts_df = prepare_cohorts(
+            cohorts_df = _prepare_cohorts(
                 train_cohorts, target_label, na_values, n_bins, min_support)
 
             if cohorts_df[target_label].nunique() < 2:
@@ -100,15 +102,15 @@ def get_runs(
             cohorts_df['is_valid'] = cohorts_df['PATIENT'].isin(valid_patients)
 
             logger.info(f'Searching for training tiles')
-            tiles_df = get_tiles(cohorts_df=cohorts_df, max_tile_num=max_tile_num,
+            tiles_df = _get_tiles(cohorts_df=cohorts_df, max_tile_num=max_tile_num,
                                 target=target_label, seed=seed)
 
             logger.info(
                 f'Training tiles: {dict(tiles_df[~tiles_df.is_valid][target_label].value_counts())}')
             logger.info(
                 f'Validation tiles: {dict(tiles_df[tiles_df.is_valid][target_label].value_counts())}')
-            valid_df = balance_classes(tiles_df=tiles_df[tiles_df.is_valid], target=target_label)
-            train_df = balance_classes(tiles_df=tiles_df[~tiles_df.is_valid], target=target_label)
+            valid_df = _balance_classes(tiles_df=tiles_df[tiles_df.is_valid], target=target_label)
+            train_df = _balance_classes(tiles_df=tiles_df[~tiles_df.is_valid], target=target_label)
             logger.info(f'Training tiles after balancing: {len(train_df)}')
             logger.info(f'Validation tiles after balancing: {len(valid_df)}')
 
@@ -122,10 +124,10 @@ def get_runs(
             logger.warning(f'{testing_set_path} already exists, using old testing set!')
             test_df = pd.read_csv(testing_set_path)
         elif test_cohorts:
-            cohorts_df = concat_cohorts(
+            cohorts_df = _concat_cohorts(
                 cohorts=test_cohorts, target_label=target_label, na_values=na_values)
             logger.info(f'Searching for training tiles')
-            test_df = get_tiles(cohorts_df=cohorts_df, max_tile_num=max_tile_num,
+            test_df = _get_tiles(cohorts_df=cohorts_df, max_tile_num=max_tile_num,
                                 target=target_label, seed=seed)
             logger.info(f'{len(test_df)} testing tiles: '
                         f'{dict(test_df[target_label].value_counts())}')
@@ -138,14 +140,14 @@ def get_runs(
                   test_df=test_df)
 
 
-def prepare_cohorts(
+def _prepare_cohorts(
         cohorts: Iterable[Cohort], target_label: str, na_values: Iterable[str], n_bins: int,
         min_support: int) -> pd.DataFrame:
     """Preprocesses the cohorts.
 
     Discretizes continuous targets and drops classes for which only few examples are present.
     """
-    cohorts_df = concat_cohorts(
+    cohorts_df = _concat_cohorts(
         cohorts=cohorts, target_label=target_label, na_values=na_values)
 
     # discretize values if necessary
@@ -153,7 +155,7 @@ def prepare_cohorts(
         try:
             cohorts_df[target_label] = cohorts_df[target_label].map(float)
             logger.info(f'Discretizing {target_label}')
-            cohorts_df[target_label] = discretize(cohorts_df[target_label].values, n_bins=n_bins)
+            cohorts_df[target_label] = _discretize(cohorts_df[target_label].values, n_bins=n_bins)
         except ValueError:
             pass
 
@@ -165,7 +167,7 @@ def prepare_cohorts(
     return cohorts_df
 
 
-def discretize(xs: Sequence[Number], n_bins: int) -> Sequence[str]:
+def _discretize(xs: Sequence[Number], n_bins: int) -> Sequence[str]:
     """Returns a discretized version of a Sequence of continuous values."""
     unsqueezed = torch.tensor(xs).reshape(-1, 1)
     est = preprocessing.KBinsDiscretizer(n_bins=n_bins, encode='ordinal').fit(unsqueezed)
@@ -179,7 +181,7 @@ def discretize(xs: Sequence[Number], n_bins: int) -> Sequence[str]:
     return list(map(label_map.get, discretized)) # type: ignore
 
 
-def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iterable[Any]) \
+def _concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iterable[Any]) \
         -> pd.DataFrame:
     """Constructs a dataframe containing patient, slide and label data for multiple cohorts.
     
@@ -238,9 +240,7 @@ def concat_cohorts(cohorts: Iterable[Cohort], target_label: str, na_values: Iter
     return cohorts_df
 
 
-#TODO df types
-def get_tiles(cohorts_df: pd.DataFrame, max_tile_num: int, target: str, seed: int) -> pd.DataFrame:
-    #breakpoint()
+def _get_tiles(cohorts_df: pd.DataFrame, max_tile_num: int, target: str, seed: int) -> pd.DataFrame:
     """Create df containing patient, tiles, other data."""
     random.seed(seed)   #FIXME doesn't work
     tiles_dfs = []
@@ -260,7 +260,7 @@ def get_tiles(cohorts_df: pd.DataFrame, max_tile_num: int, target: str, seed: in
     return tiles_df
 
 
-def balance_classes(tiles_df: pd.DataFrame, target: str) -> pd.DataFrame:
+def _balance_classes(tiles_df: pd.DataFrame, target: str) -> pd.DataFrame:
     smallest_class_count = min(tiles_df[target].value_counts())
     for label in tiles_df[target].unique():
         tiles_with_label = tiles_df[tiles_df[target] == label]

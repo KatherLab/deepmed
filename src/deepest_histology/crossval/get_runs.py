@@ -7,8 +7,10 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 
 from ..experiment import Run
-from ..basic.get_runs import prepare_cohorts, get_tiles, balance_classes, Cohort
+from ..basic.get_runs import _prepare_cohorts, _get_tiles, _balance_classes, Cohort
 from ..utils import log_defaults
+
+__all__ = ['get_runs']
 
 
 logger = logging.getLogger(__name__)
@@ -53,7 +55,7 @@ def get_runs(*,
                           test_df=test_df)
         else:
             assert cohorts, 'No old training and testing sets found and no cohorts given!'
-            cohorts_df = prepare_cohorts(
+            cohorts_df = _prepare_cohorts(
                 cohorts, target_label, na_values, n_bins, min_support)
 
             if cohorts_df[target_label].nunique() < 2:
@@ -62,20 +64,20 @@ def get_runs(*,
 
             logger.info(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
             
-            folded_df = create_folds(cohorts_df=cohorts_df, target_label=target_label, folds=folds,
+            folded_df = _create_folds(cohorts_df=cohorts_df, target_label=target_label, folds=folds,
                                     valid_frac=valid_frac, seed=seed)
             logger.info(f'Searching for tiles')
-            tiles_df = get_tiles(cohorts_df=folded_df, max_tile_num=max_tile_num,
+            tiles_df = _get_tiles(cohorts_df=folded_df, max_tile_num=max_tile_num,
                                 target=target_label, seed=seed)
 
             for fold in sorted(folded_df.fold.unique()):
                 logger.info(f'For fold {fold}:')
                 logger.info(f'Training tiles: {dict(tiles_df[(tiles_df.fold != fold) & ~tiles_df.is_valid][target_label].value_counts())}')
                 logger.info(f'Validation tiles: {dict(tiles_df[(tiles_df.fold != fold) & tiles_df.is_valid][target_label].value_counts())}')
-                train_df = balance_classes(
+                train_df = _balance_classes(
                     tiles_df=tiles_df[(tiles_df.fold != fold) & ~tiles_df.is_valid],
                     target=target_label)
-                valid_df = balance_classes(
+                valid_df = _balance_classes(
                     tiles_df=tiles_df[(tiles_df.fold != fold) & tiles_df.is_valid],
                     target=target_label)
                 logger.info(f'{len(train_df)} training tiles')
@@ -91,30 +93,8 @@ def get_runs(*,
                           test_df=test_df)
 
 
-#TODO find better name
-def load_runs(*,
-        targets: Iterable[str],
-        project_dir: Path,
-        **kwargs) -> Sequence[Run]:
-
-    runs = []
-    for target in targets:
-        for target_dir in (project_dir/target).iterdir():
-            if target_dir.is_dir() and target_dir.name.startswith('fold_'):
-                train_path = target_dir/'training_set.csv'
-                test_path = target_dir/'testing_set.csv'
-                runs.append(
-                    Run(directory=target_dir,
-                        target=target,
-                        train_df=pd.read_csv(train_path) if train_path.exists else None,
-                        test_df=pd.read_csv(test_path) if test_path.exists else None))
-
-    return runs
-
-
-
 # TODO define types for dfs
-def create_folds(
+def _create_folds(
         cohorts_df: pd.DataFrame, target_label, folds: int, valid_frac: float, seed: int) \
         -> pd.DataFrame:
 
