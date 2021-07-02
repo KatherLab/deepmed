@@ -63,13 +63,14 @@ def get_runs(*,
                 continue
 
             logger.info(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
-            
+
             folded_df = _create_folds(cohorts_df=cohorts_df, target_label=target_label, folds=folds,
                                     valid_frac=valid_frac, seed=seed)
             logger.info(f'Searching for tiles')
             tiles_df = _get_tiles(cohorts_df=folded_df, max_tile_num=max_tile_num,
                                 target=target_label, seed=seed)
 
+            fold_runs = []
             for fold in sorted(folded_df.fold.unique()):
                 logger.info(f'For fold {fold}:')
                 logger.info(f'Training tiles: {dict(tiles_df[(tiles_df.fold != fold) & ~tiles_df.is_valid][target_label].value_counts())}')
@@ -87,10 +88,28 @@ def get_runs(*,
                 logger.info(f'{len(test_df)} testing tiles')
                 assert not test_df.empty, 'Empty fold in cross validation!'
 
-                yield Run(directory=project_dir/target_label/f'fold_{fold}',
-                          target=target_label,
-                          train_df=pd.concat([train_df, valid_df]),
-                          test_df=test_df)
+                run = Run(
+                    directory=project_dir/target_label/f'fold_{fold}',
+                    target=target_label,
+                    train_df=pd.concat([train_df, valid_df]),
+                    test_df=test_df)
+
+                _save_run_files(run)
+                fold_runs.append(run)
+
+            for run in fold_runs:
+                yield(run)
+
+
+def _save_run_files(run: Run) -> None:
+    logger.info(f'Saving training/testing data for run {run.directory}...')
+    run.directory.mkdir(exist_ok=True, parents=True)
+    if run.train_df is not None and \
+            not (training_set_path := run.directory/'training_set.csv.zip').exists():
+        run.train_df.to_csv(training_set_path, index=False, compression='zip')
+    if run.test_df is not None and \
+            not (testing_set_path := run.directory/'testing_set.csv.zip').exists():
+        run.test_df.to_csv(testing_set_path, index=False, compression='zip')
 
 
 # TODO define types for dfs
@@ -113,5 +132,5 @@ def _create_folds(
         test_df = cohorts_df.iloc[test_idx]
         cohorts_df.is_valid |= \
             cohorts_df.index.isin(test_df.sample(frac=valid_frac, random_state=seed).index)
-    
+
     return cohorts_df

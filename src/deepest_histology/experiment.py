@@ -261,8 +261,6 @@ def _do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
     logger = logging.getLogger(str(run.directory.relative_to(project_dir)))
     logger.info(f'Starting run')
 
-    _save_run_files(run, logger=logger)
-
     for device, capacity in zip(devices, capacities):
         # search for a free gpu
         if not capacity.acquire(blocking=False): continue   # type: ignore
@@ -291,17 +289,6 @@ def _do_run_wrapper(kwds):
     except:
         logger.exception(f'Exception in run {kwds["run"]}!')
         return None
-
-
-def _save_run_files(run: Run, logger) -> None:
-    logger.info(f'Saving training/testing data for run {run.directory}...')
-    run.directory.mkdir(exist_ok=True, parents=True)
-    if run.train_df is not None and \
-            not (training_set_path := run.directory/'training_set.csv.zip').exists():
-        run.train_df.to_csv(training_set_path, index=False, compression='zip')
-    if run.test_df is not None and \
-            not (testing_set_path := run.directory/'testing_set.csv.zip').exists():
-        run.test_df.to_csv(testing_set_path, index=False, compression='zip')
 
 
 def _train(train: Trainer, exp: Run, logger, **kwargs) -> Learner:
