@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Optional, Iterable, Callable
 from pathlib import Path
 from enum import Enum, auto
+from functools import lru_cache
 
 import pandas as pd
 from PIL import Image
@@ -60,23 +61,29 @@ class Grouped:
 
     def __call__(self, target_label: str, preds_df: pd.DataFrame, result_dir: Path) \
             -> Optional[pd.DataFrame]:
-        grouped_df = preds_df.groupby(self.by).first()
-        for class_ in preds_df[target_label].unique():
-            if self.mode == GroupMode.prediction_rate:
-                grouped_df[f'{target_label}_{class_}'] = (
-                        preds_df.groupby(self.by)[f'{target_label}_pred']
-                                .agg(lambda x: sum(x == class_) / len(x)))
-            elif self.mode == GroupMode.mean:
-                grouped_df[f'{target_label}_{class_}'] = \
-                        preds_df.groupby(self.by)[f'{target_label}_pred'].mean()
-
         group_dir = result_dir/self.by
         group_dir.mkdir(exist_ok=True)
+        grouped_df = _group_df(preds_df, target_label, self.by, self.mode)
         if (df := self.metric(target_label, grouped_df, group_dir)) is not None:
             columns = pd.MultiIndex.from_product([df.columns, [self.by]])
             return pd.DataFrame(df.values, index=df.index, columns=columns)
 
         return None
+
+
+@lru_cache(maxsize=64)
+def _group_df(preds_df: pd.DataFrame, target_label: str, by: str, mode: GroupMode) -> pd.DataFrame:
+    grouped_df = preds_df.groupby(by).first()
+    for class_ in preds_df[target_label].unique():
+        if mode == GroupMode.prediction_rate:
+            grouped_df[f'{target_label}_{class_}'] = (
+                    preds_df.groupby(by)[f'{target_label}_pred']
+                            .agg(lambda x: sum(x == class_) / len(x)))
+        elif mode == GroupMode.mean:
+            grouped_df[f'{target_label}_{class_}'] = \
+                    preds_df.groupby(by)[f'{target_label}_pred'].mean()
+
+    return grouped_df
 
 
 @dataclass

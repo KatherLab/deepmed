@@ -1,6 +1,6 @@
 import random
 import logging
-from typing import Iterable, Sequence, Iterator, Any
+from typing import Iterable, Iterator, Any
 from pathlib import Path
 
 import pandas as pd
