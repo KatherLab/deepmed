@@ -47,10 +47,11 @@ class GroupMode(Enum):
 class Grouped:
     """Calculates a metric with the data grouped on an attribute.
 
-    It's not always meaningful to calculate metrics on the sample level. This function first
-    accumulates the predictions according to another property of the sample (as specified in the
-    clinical table), grouping samples with the same value together.  Furthermore, the result dir
-    given to the result dir will be extended by a subdirectory named after the grouped-by property.
+    It's not always meaningful to calculate metrics on the sample level. This
+    function first accumulates the predictions according to another property of
+    the sample (as specified in the clinical table), grouping samples with the
+    same value together.  Furthermore, the result dir given to the result dir
+    will be extended by a subdirectory named after the grouped-by property.
     """
     metric: Metric
     """Metric to evaluate on the grouped predictions."""
@@ -93,7 +94,8 @@ class SubGrouped:
     by: str
     """The property to group by.
 
-    The metric will be calculated seperately for each distinct label of this property.
+    The metric will be calculated seperately for each distinct label of this
+    property.
     """
     def __call__(self, target_label: str, preds_df: pd.DataFrame, result_dir: Path) \
             -> Optional[pd.DataFrame]:
@@ -116,15 +118,12 @@ def aggregate_stats(
         -> pd.DataFrame:
     """Accumulates stats from subdirectories.
 
-    By default, this function simply concatenates the contents of all the ``stats.csv`` files in
-    ``result_dir``'s immediate subdirectories.  Each of the subdirectories' names will be added as
-    to the index at its top level.
+    By default, this function simply concatenates the contents of all the
+    ``stats.csv`` files in ``result_dir``'s immediate subdirectories.  Each of
+    the subdirectories' names will be added as to the index at its top level.
 
-    This function may also aggregate over metrics: if the ``group_levels`` option is given, the
-    stats will be grouped by the specified index levels.
-
-    Args:
-      group_levels: Iterable[int]:  (Default value = [])
+    This function may also aggregate over metrics: if the ``group_levels``
+    option is given, the stats will be grouped by the specified index levels.
     """
     # collect all parent stats dfs
     dfs = []
@@ -194,8 +193,8 @@ def f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path,
     """Calculates the F1 score.
 
     Args:
-      min_tpr: Optional[float]:  (Default value = None)  If min_tpr is not given, a threshold which
-        maximizes the F1 score is selected; otherwise the threshold which guarantees a tpr of at
+        min_tpr:  If min_tpr is not given, a threshold which maximizes the F1
+        score is selected; otherwise the threshold which guarantees a tpr of at
         least min_tpr is used.
     """
     y_true = preds_df[target_label]
@@ -218,9 +217,9 @@ def confusion_matrix(
     """Generates a confusion matrix for each class label.
 
     Args:
-      min_tpr: Optional[float]:  (Default value = None)  The minimum true positive rate the
-        confusion matrix shall have for each class.  If None, the true positive rate maximizing the
-        F1 score will be calculated.
+        min_tpr:  The minimum true positive rate the confusion matrix shall have
+            for each class.  If None, the true positive rate maximizing the F1
+            score will be calculated.
     """
     classes = preds_df[target_label].unique()
     if len(classes) == 2:
@@ -255,16 +254,16 @@ def _get_thresh(target_label: str, preds_df: pd.DataFrame, pos_label: str,
                 min_tpr: Optional[float] = None) -> float:
     """Calculates a classification threshold for a class.
 
-    If `min_tpr` is given, the lowest threshold to guarantee the requested tpr is returned.  Else,
-    the threshold optimizing the F1 score will be returned.
+    If `min_tpr` is given, the lowest threshold to guarantee the requested tpr
+    is returned.  Else, the threshold optimizing the F1 score will be returned.
 
     Args:
-      pos_label: str:  The class to optimize for.
-      min_tpr: Optional[float]:  (Default value = None)  The minimum required true prositive rate,
-        or the threshold which maximizes the F1 score if None.
+        pos_label: str:  The class to optimize for.
+        min_tpr:  The minimum required true prositive rate, or the threshold
+            which maximizes the F1 score if None.
 
     Returns:
-      The optimal theshold.
+        The optimal theshold.
     """
     fprs, tprs, threshs = skm.roc_curve(
         (preds_df[target_label] == pos_label)*1., preds_df[f'{target_label}_{pos_label}'])
@@ -299,8 +298,9 @@ def top_tiles(
         n_patients: int = 4, n_tiles: int = 4, patient_label: str = 'PATIENT') -> None:
     """Generates a grid of the best scoring tiles for each class.
 
-    The function outputs a `n_patients` × `n_tiles` grid of tiles, where each row contains the
-    `n_tiles` highest scoring tiles for one of the `n_patients` best-classified patients.
+    The function outputs a `n_patients` × `n_tiles` grid of tiles, where each
+    row contains the `n_tiles` highest scoring tiles for one of the `n_patients`
+    best-classified patients.
     """
     for class_ in preds_df[f'{target_label}_pred'].unique():
         plt.figure(figsize=(n_patients, n_tiles), dpi=300)

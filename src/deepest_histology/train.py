@@ -10,30 +10,54 @@ import pandas as pd
 from torch import nn
 
 from fastai.vision.all import (
-    Optimizer, Adam, Learner, DataBlock, ImageBlock, CategoryBlock, ColReader, ColSplitter,
-    resnet18, cnn_learner, BalancedAccuracy, SaveModelCallback, EarlyStoppingCallback,
-    CSVLogger, CrossEntropyLossFlat, aug_transforms)
+    Learner, DataBlock, ImageBlock, CategoryBlock, ColReader, ColSplitter, resnet18, cnn_learner,
+    BalancedAccuracy, SaveModelCallback, EarlyStoppingCallback, CSVLogger, CrossEntropyLossFlat,
+    aug_transforms)
 
-from ..utils import log_defaults
+from .utils import log_defaults
+from .types import Run
 
-__all__ = ['train', 'fit_from_checkpoint']
+__all__ = ['train']
 
 
 @log_defaults
-def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
-          arch: Callable[[bool], nn.Module] = resnet18,
-          batch_size: int = 64,
-          max_epochs: int = 10,
-          opt: Optimizer = Adam,
-          lr: float = 2e-3,
-          patience: int = 3,
-          num_workers: int = 0,
-          tfms: Callable = aug_transforms(
-              flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224),
-          metrics: Iterable[Callable] = [BalancedAccuracy()],
-          monitor: str = 'valid_loss',
-          logger = logging,
-          **kwargs) -> Learner:
+def train(
+        run: Run, /,
+        arch: Callable[[bool], nn.Module] = resnet18,
+        batch_size: int = 64,
+        max_epochs: int = 10,
+        lr: float = 2e-3,
+        num_workers: int = 0,
+        tfms: Callable = aug_transforms(
+            flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224),
+        metrics: Iterable[Callable] = [BalancedAccuracy()],
+        patience: int = 3,
+        monitor: str = 'valid_loss') -> Learner:
+    """Trains a single model.
+
+    Args:
+        run:  The run to train a model for.
+        arch:  The architecture of the model to train.
+        max_epochs:  The absolute maximum number of epochs to train.
+        lr:  The initial learning rate.
+        num_workers:  The number of workers to use in the data loaders.  Set to
+            0 on windows!
+        tfms:  Transforms to apply to the data.
+        metrics:  The metrics to calculate on the validation set each epoch.
+        patience:  The number of epochs without improvement before stopping the
+            training.
+        monitor:  The metric to monitor for early stopping.
+
+    Returns:
+        The trained model.
+
+    If the training is interrupted, it will be continued from the last model
+    checkpoint.
+    """
+    target_label, train_df, result_dir = run.target, run.train_df, run.directory
+
+    assert train_df is not None, 'Cannot train: no training set given!'
+
 
     dblock = DataBlock(blocks=(ImageBlock, CategoryBlock),
                        get_x=ColReader('tile_path'),
@@ -44,22 +68,21 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
 
     target_col_idx = train_df[~train_df.is_valid].columns.get_loc(target_label)
 
-    logger.debug(f'Class counts in training set: {train_df[~train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
-    logger.debug(f'Class counts in validation set: {train_df[train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
+    run.logger.debug(f'Class counts in training set: {train_df[~train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
+    run.logger.debug(f'Class counts in validation set: {train_df[train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
 
     counts = train_df[~train_df.is_valid].iloc[:, target_col_idx].value_counts()
 
     counts = torch.tensor([counts[k] for k in dls.vocab])
     weights = 1 - (counts / sum(counts))
 
-    logger.info(f'{dls.vocab = }, {weights = }')
+    run.logger.info(f'{dls.vocab = }, {weights = }')
 
     learn = cnn_learner(
         dls, arch,
         path=result_dir,
         loss_func=CrossEntropyLossFlat(weight=weights.cuda()),
-        metrics=metrics,
-        opt_func=opt)
+        metrics=metrics)
 
     cbs = [
         SaveModelCallback(monitor=monitor, fname=f'best_{monitor}', reset_on_fit=False),
@@ -69,9 +92,9 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
         CSVLogger(append=True)]
 
     if (result_dir/'models'/f'best_{monitor}.pth').exists():
-        fit_from_checkpoint(
+        _fit_from_checkpoint(
             learn=learn, result_dir=result_dir, lr=lr/2, max_epochs=max_epochs, cbs=cbs,
-            monitor=monitor, logger=logger)
+            monitor=monitor, logger=run.logger)
     else:
         learn.fine_tune(epochs=max_epochs, base_lr=lr, cbs=cbs)
 
@@ -82,7 +105,7 @@ def train(target_label: str, train_df: pd.DataFrame, result_dir: Path,
     return learn
 
 
-def fit_from_checkpoint(
+def _fit_from_checkpoint(
         learn: Learner, result_dir: Path, lr: float, max_epochs: int, cbs: Iterable[Callable],
         monitor: str, logger) \
         -> None:

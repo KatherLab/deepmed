@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import logging
 from zipfile import BadZipFile
 from typing import Union, Iterable, Optional, Callable, Sequence, Tuple, Iterator
@@ -11,102 +12,43 @@ from functools import partial
 from fastai.vision.all import Learner, load_learner
 
 import pandas as pd
-from pandas.core.indexes.multi import MultiIndex
 import torch
+import coloredlogs
 
+from . import train, deploy
 from .utils import Lazy
 from .metrics import Metric
+from .types import *
 
 
-__all__ = [
-    'Run', 'RunGetter', 'Trainer', 'Deployer', 'Coordinator' 'PathLike', 'do_experiment']
+__all__ = ['do_experiment']
 
 
+coloredlogs.install(fmt='%(asctime)s,%(msecs)03d %(name)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class Run:
-    """A collection of data to train or test a model."""
-    directory: Path
-    """The directory to save data in for this run."""
-    target: str
-    """The name of the target to train or deploy on."""
-    train_df: Optional[pd.DataFrame] = None
-    """A dataframe mapping tiles to be used for training to their targets.
-
-    It contains at least the following columns:
-    - tile_path: Path
-    - is_valid: bool:  whether the tile should be used for validation (e.g. for early stopping).
-    - At least one target column with the name saved in the run's `target`.
-    """
-    test_df: Optional[pd.DataFrame] = None
-    """A dataframe mapping tiles used for testing to their targets.
-
-    It contains at least the following columns:
-    - tile_path: Path
-    """
-
-
-RunGetter = Callable[..., Iterator[Run]]
-"""A function which creates a series of runs."""
-
-Trainer = Callable[..., Learner]
-"""A function which trains a model.
-
-Required kwargs:
-    train_df: TrainDF:  A dataset specifying which tiles to train on.
-    target_label: str:  The label to train on.
-    result_dir:  A folder to write intermediate results to.
-
-Returns:
-    The trained model.
-"""
-
-Deployer = Callable[..., pd.DataFrame]
-"""A function which deployes a model.
-
-Required kwargs:
-    model: Learner:  The model to test on.
-    target_label: str:  The name to be given to the result column.
-    test_df: TestDF:  A dataframe specifying which tiles to deploy the model on.
-    result_dir:  A folder to write intermediate results to.
-
-Returns:
-    `test_df`, but with at least an additional column for the target predictions.
-"""
-
-
-@dataclass
-class Coordinator:
-    """Defines how an experiment is to be performed."""
-    get: RunGetter
-    """A function which generates runs."""
-    train: Optional[Trainer] = None
-    """A function which trains a model for each of the runs."""
-    deploy: Optional[Deployer] = None
-    """A function which deploys a trained model to a test set, yielding predictions."""
-
-
-PathLike = Union[str, Path]
-
-
-def do_experiment(*,
+def do_experiment(
         project_dir: PathLike,
-        mode: Coordinator,
+        get: RunGetter,
+        train: Optional[Trainer] = train,
+        deploy: Optional[Deployer] = deploy,
         model_path: Optional[PathLike] = None,
         num_concurrent_runs: int = 4,
         devices = [torch.cuda.current_device()],
-        evaluator_groups: Sequence[Iterable[Metric]] = [],
-        **kwargs) -> None:
+        evaluator_groups: Sequence[Iterable[Metric]] = []) -> None:
     """Runs an experiement.
 
     Args:
         project_dir:  The directory to save project data in.
-        mode:  How to perform the training / testing process.
-        save_models:  Whether or not to save the resulting models.
+        get:  A function which generates runs.
+        train:  A function training a model for a specific run.
+        deploy:  A function deploying a trained model.
+        num_concurrent_runs:  The maximum amount of runs to do at the same time.
+            Useful for multi-GPU systems.
+        devices:  The devices to use for training.
+        evaluator_groups:  TODO
     """
-
     assert num_concurrent_runs >= 1
 
     project_dir = Path(project_dir)
@@ -121,15 +63,14 @@ def do_experiment(*,
 
     logger.info('Getting runs')
 
-    kwds = { 'mode': mode, 'model_path': model_path, 'project_dir': project_dir }
-
     with Manager() as manager:
         # semaphores which tell us which GPUs still have resources free
         # each gpu is a assumed to have the same capabilities
         capacities = [manager.Semaphore((num_concurrent_runs+len(devices)-1)//len(devices))  # type: ignore
                       for _ in devices]
-        run_args = ({'run': run, 'devices': devices, 'capacities': capacities,  **kwds, **kwargs}
-                     for run in mode.get(project_dir=project_dir, **kwargs))
+        run_args = ({'run': run, 'train': train, 'deploy': deploy, 'devices': devices,
+                     'capacities': capacities, 'model_path': model_path, 'project_dir': project_dir}
+                     for run in get(project_dir))
 
         with Pool(num_concurrent_runs) as pool:
             # only use pool if we actually want to run multiple runs in parallel
@@ -146,15 +87,15 @@ def _evaluate_runs(
     """Calls evaluation functions for each run.
 
     Args:
-        runs:  An iterator over the already completed runs.  This iterator has to traverse the runs
-            in-order.
+        runs:  An iterator over the already completed runs.  This iterator has
+            to traverse the runs in-order.
         project_dir:  The root directory of the experiment.
         evaluator_groups:  A sequence of collections of evaluation functions.
 
     TODO a more detailed description
 
-    Assume we have the evaluator groups `[A, B, C]`.  Then the the evaluator groups will be invoked
-    as follows:
+    Assume we have the evaluator groups `[A, B, C]`.  Then the the evaluator
+    groups will be invoked as follows:
 
         root/a/b
         root/a/c   -> C(b)
@@ -165,8 +106,8 @@ def _evaluate_runs(
         root/e/j   -> C(g)
                    -> C(j), B(e), A(root)
 
-    where B(a) means that all the evaluation functions in evaluator group B will be invoked on run
-    a.
+    where B(a) means that all the evaluation functions in evaluator group B will
+    be invoked on run a.
     """
     last_run = None
 
@@ -256,29 +197,31 @@ def _get_preds_df(result_dir: Path) -> pd.DataFrame:
     return preds_df
 
 
-def _do_run(run: Run, mode: Coordinator, model_path: Path, project_dir: Path,
-           devices: Iterable, capacities: Iterable[Semaphore] = [], **kwargs) -> None:
-    logger = logging.getLogger(str(run.directory.relative_to(project_dir)))
-    logger.info(f'Starting run')
+def _do_run(
+        run: Run, train: Optional[Trainer], deploy: Optional[Deployer], model_path: Path,
+        project_dir: Path, devices: Iterable, capacities: Iterable[Semaphore] = []) \
+        -> None:
+    assert not (model_path and run.train_df is not None), \
+        'Specified both a model to deploy on and a training procedure'
+
+    run.logger.info(f'Starting run')
 
     for device, capacity in zip(devices, capacities):
         # search for a free gpu
         if not capacity.acquire(blocking=False): continue   # type: ignore
         try:
             with torch.cuda.device(device):
-                learn = (_train(train=mode.train, exp=run, logger=logger, **kwargs)
-                        if mode.train and run.train_df is not None
+                learn = (_train(train=train, run=run)
+                        if train and run.train_df is not None
                         else None)
 
-                if mode.deploy and run.test_df is not None:
-                    _deploy(deploy=mode.deploy, learn=learn, run=run, model_path=model_path, logger=logger,
-                            **kwargs)
+                if deploy and run.test_df is not None:
+                    _deploy(deploy=deploy, learn=learn, run=run, model_path=model_path)
 
                 break
         finally: capacity.release()
     else:
         raise RuntimeError('Could not find a free GPU!')
-
 
 
 def _do_run_wrapper(kwds):
@@ -287,44 +230,35 @@ def _do_run_wrapper(kwds):
         _do_run(**kwds)
         return kwds['run']
     except:
-        logger.exception(f'Exception in run {kwds["run"]}!')
+        kwds['run'].logger.exception(f'Exception in run {kwds["run"]}!')
         return None
 
 
-def _train(train: Trainer, exp: Run, logger, **kwargs) -> Learner:
-    model_path = exp.directory/'export.pkl'
+def _train(train: Trainer, run: Run) -> Learner:
+    model_path = run.directory/'export.pkl'
     if model_path.exists():
-        logger.warning(f'{model_path} already exists, using old model!')
+        run.logger.warning(f'{model_path} already exists, using old model!')
         return load_learner(model_path)
 
-    logger.info('Starting training')
-    learn = train(target_label=exp.target,
-                  train_df=exp.train_df,
-                  result_dir=exp.directory,
-                  logger=logger,
-                  **kwargs)
+    run.logger.info('Starting training')
+    learn = train(run)
 
     return learn
 
 
-def _deploy(deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Optional[PathLike],
-            logger, **kwargs) -> pd.DataFrame:
+def _deploy(
+    deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Optional[PathLike]) -> pd.DataFrame:
     preds_path = run.directory/'predictions.csv.zip'
     if preds_path.exists():
-        logger.warning(f'{preds_path} already exists, using old predictions!')
+        run.logger.warning(f'{preds_path} already exists, using old predictions!')
         return pd.read_csv(preds_path)
 
     if not learn:
-        logger.info('Loading model')
+        run.logger.info('Loading model')
         learn = _load_learner_to_device(model_path or run.directory/'export.pkl')
 
-    logger.info('Getting predictions')
-    preds_df = deploy(learn=learn,
-                      target_label=run.target,
-                      test_df=run.test_df,
-                      result_dir=run.directory,
-                      logger=logger,
-                      **kwargs)
+    run.logger.info('Getting predictions')
+    preds_df = deploy(learn, run)
     preds_df.to_csv(preds_path, index=False, compression='zip')
 
     return preds_df

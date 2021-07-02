@@ -8,10 +8,10 @@ if __name__ == '__main__':  # required on windows
         cohorts=[
             # Don't forget the `r` in Windows-style paths!
             Cohort(
-                tile_dir=r'G:\DACHS-CRC-DX\BLOCKS_NORM_MACENKO',
+                tile_path=r'G:\DACHS-CRC-DX\BLOCKS_NORM_MACENKO',
                 clini_path=r'G:\path\to\clini.csv', slide_path=r'G:\path\to\slide.csv'),
             Cohort(
-                tile_dir=r'G:\RAINBOW-CRC-DX\BLOCKS_NORM',
+                tile_path=r'G:\RAINBOW-CRC-DX\BLOCKS_NORM',
                 clini_path=r'G:\path\to\clini.csv', slide_path=r'G:\path\to\slide.csv')],
         target_labels=['isMSIH', 'gender'], # labels to train for
         evaluator_groups=[

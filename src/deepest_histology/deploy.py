@@ -3,12 +3,17 @@ from pathlib import Path
 import pandas as pd
 from fastai.vision.all import Learner
 
-from ..utils import log_defaults
+from .utils import log_defaults
+
+__all__ = ['deploy']
+
+__all__ = ['deploy']
 
 
 @log_defaults
-def deploy(learn: Learner, target_label: str, test_df: pd.DataFrame, result_dir: Path,
-           **kwargs) -> pd.DataFrame:
+def deploy(learn: Learner, run) -> pd.DataFrame:
+    test_df, target_label = run.test_df, run.target
+    assert test_df is not None, 'Cannot deploy: no testing set given!'
 
     test_dl = learn.dls.test_dl(test_df)
     # inner needed so we don't jump GPUs
