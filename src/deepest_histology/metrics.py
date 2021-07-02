@@ -30,7 +30,7 @@ import sklearn.metrics as skm
 
 __all__ = [
     'Metric', 'Grouped', 'SubGrouped', 'aggregate_stats', 'f1', 'confusion_matrix', 'auroc',
-    'count', 'top_tiles', 'roc', 'GroupMode']
+    'count', 'top_tiles', 'roc', 'GroupMode', 'p_value']
 
 
 Metric = Callable[[str, pd.DataFrame, Path], Optional[pd.DataFrame]]
@@ -179,6 +179,13 @@ def _get_header_and_index_col(csv_path: Path):
     return (list(range(header_no)), list(range(index_no)))
 
 
+def p_value(target_label: str, preds_df: pd.DataFrame, _result_dir: Path) -> pd.DataFrame:
+    stats = {}
+    for class_ in preds_df[target_label].unique():
+        pos_scores = preds_df[f'{target_label}_{class_}'][preds_df[target_label] == class_]
+        neg_scores = preds_df[f'{target_label}_{class_}'][preds_df[target_label] != class_]
+        stats[class_] = [st.ttest_ind(pos_scores, neg_scores).pvalue]
+    return pd.DataFrame.from_dict(stats, orient='index', columns=['p value'])
 
 
 def f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path,
