@@ -2,10 +2,10 @@
 
 import logging
 from zipfile import BadZipFile
-from typing import Union, Iterable, Optional, Callable, Sequence, Tuple, Iterator
+from typing import Iterable, Optional, Callable, Sequence, Tuple, Iterator
 from pathlib import Path
-from dataclasses import dataclass
-from multiprocessing import Pool, Manager
+from multiprocessing import Manager, Process
+from multiprocessing.pool import ThreadPool
 from multiprocessing.synchronize import Semaphore
 from functools import partial
 
@@ -72,12 +72,15 @@ def do_experiment(
                      'capacities': capacities, 'model_path': model_path, 'project_dir': project_dir}
                      for run in get(project_dir))
 
-        with Pool(num_concurrent_runs) as pool:
+        # We use a ThreadPool which starts processes so our launched processes are:
+        #  1. Terminated after each training run so we don't leak resources
+        #  2. We can spawn more processes in the launched subprocesses (not possible with Pool)
+        with ThreadPool(num_concurrent_runs or 1) as pool:
             # only use pool if we actually want to run multiple runs in parallel
             runs = filter(
                 lambda x: x is not None,
-                (pool.imap(_do_run_wrapper, run_args, chunksize=1) if num_concurrent_runs > 1
-                 else (_do_run_wrapper(args) for args in run_args)))
+                (pool.imap(_do_run_wrapper, run_args, chunksize=1) if num_concurrent_runs >= 1
+                 else (_do_run_wrapper(**args) for args in run_args)))
             _evaluate_runs(runs, project_dir=project_dir, evaluator_groups=evaluator_groups)
 
 
@@ -199,7 +202,7 @@ def _get_preds_df(result_dir: Path) -> pd.DataFrame:
 
 def _do_run(
         run: Run, train: Optional[Trainer], deploy: Optional[Deployer], model_path: Path,
-        project_dir: Path, devices: Iterable, capacities: Iterable[Semaphore] = []) \
+        devices: Iterable, capacities: Iterable[Semaphore] = []) \
         -> None:
     assert not (model_path and run.train_df is not None), \
         'Specified both a model to deploy on and a training procedure'
@@ -224,13 +227,18 @@ def _do_run(
         raise RuntimeError('Could not find a free GPU!')
 
 
-def _do_run_wrapper(kwds):
-    #TODO explain!
-    try:
-        _do_run(**kwds)
-        return kwds['run']
-    except:
-        kwds['run'].logger.exception(f'Exception in run {kwds["run"]}!')
+def _do_run_wrapper(kwargs) -> Optional[Run]:
+    """Starts a new process to train a model."""
+    run = kwargs['run']
+    # Starting a new process guarantees that the allocaded CUDA resources will
+    # be released upon completion of training.
+    p = Process(target=_do_run, kwargs=kwargs)
+    p.start()
+    p.join()
+
+    if p.exitcode == 0:
+        return run
+    else:
         return None
 
 
