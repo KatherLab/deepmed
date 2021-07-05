@@ -13,7 +13,6 @@ from fastai.vision.all import Learner, load_learner
 
 import pandas as pd
 import torch
-import coloredlogs
 
 from . import train, deploy
 from .utils import Lazy
@@ -24,7 +23,6 @@ from .types import *
 __all__ = ['do_experiment']
 
 
-coloredlogs.install(fmt='%(asctime)s,%(msecs)03d %(name)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -49,8 +47,6 @@ def do_experiment(
         devices:  The devices to use for training.
         evaluator_groups:  TODO
     """
-    assert num_concurrent_runs >= 1
-
     project_dir = Path(project_dir)
     project_dir.mkdir(exist_ok=True, parents=True)
 
@@ -66,10 +62,11 @@ def do_experiment(
     with Manager() as manager:
         # semaphores which tell us which GPUs still have resources free
         # each gpu is a assumed to have the same capabilities
-        capacities = [manager.Semaphore((num_concurrent_runs+len(devices)-1)//len(devices))  # type: ignore
-                      for _ in devices]
+        capacities = [
+            manager.Semaphore(max(1, (num_concurrent_runs+len(devices)-1)//len(devices)))  # type: ignore
+            for _ in devices]
         run_args = ({'run': run, 'train': train, 'deploy': deploy, 'devices': devices,
-                     'capacities': capacities, 'model_path': model_path, 'project_dir': project_dir}
+                     'capacities': capacities, 'model_path': model_path}
                      for run in get(project_dir))
 
         # We use a ThreadPool which starts processes so our launched processes are:
@@ -78,9 +75,9 @@ def do_experiment(
         with ThreadPool(num_concurrent_runs or 1) as pool:
             # only use pool if we actually want to run multiple runs in parallel
             runs = filter(
-                lambda x: x is not None,
+                lambda x: x is not None,    # remove all failed runs
                 (pool.imap(_do_run_wrapper, run_args, chunksize=1) if num_concurrent_runs >= 1
-                 else (_do_run_wrapper(**args) for args in run_args)))
+                 else (_do_run_wrapper(args) for args in run_args)))
             _evaluate_runs(runs, project_dir=project_dir, evaluator_groups=evaluator_groups)
 
 

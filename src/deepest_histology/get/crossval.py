@@ -1,5 +1,5 @@
-import random
 import logging
+from os import name
 from typing import Iterable, Iterator, Any
 from pathlib import Path
 
@@ -51,13 +51,12 @@ def crossval(
     will be generated in a stratified fashion, meaning that the cohorts' class
     distribution will be maintained.
     """
-
-    existing_fold_dirs = [fold_dir
-                          for fold_dir in (project_dir/target_label).iterdir()
-                          if fold_dir.is_dir() and fold_dir.name.startswith('fold_')] \
-            if (project_dir/target_label).is_dir() else None
-
     logger = logging.getLogger(target_label)
+    existing_fold_dirs = [fold_dir
+                          for fold_dir in project_dir.iterdir()
+                          if fold_dir.is_dir() and fold_dir.name.startswith('fold_')] \
+            if project_dir.is_dir() else None
+
     if existing_fold_dirs:
         logger.info(f'Using old training and testing set')
         for fold_dir in existing_fold_dirs:
@@ -71,9 +70,10 @@ def crossval(
                         else None)
 
             yield Run(directory=fold_dir,
-                        target=target_label,
-                        train_df=train_df,
-                        test_df=test_df)
+                      target=target_label,
+                      train_df=train_df,
+                      test_df=test_df,
+                      logger=logging.getLogger(f'{logger.name}/{fold_dir.name}'))
     else:
         assert cohorts, 'No old training and testing sets found and no cohorts given!'
         cohorts_df = _prepare_cohorts(
@@ -93,22 +93,21 @@ def crossval(
 
         fold_runs = []
         for fold in sorted(folded_df.fold.unique()):
-            logger = logging.getLogger()
+            fold_logger = logging.getLogger(f'{logger.name}/fold_{fold}')
 
-            logger.info(f'For fold {fold}:')
-            logger.info(f'Training tiles: {dict(tiles_df[(tiles_df.fold != fold) & ~tiles_df.is_valid][target_label].value_counts())}')
-            logger.info(f'Validation tiles: {dict(tiles_df[(tiles_df.fold != fold) & tiles_df.is_valid][target_label].value_counts())}')
+            fold_logger.info(f'Training tiles: {dict(tiles_df[(tiles_df.fold != fold) & ~tiles_df.is_valid][target_label].value_counts())}')
+            fold_logger.info(f'Validation tiles: {dict(tiles_df[(tiles_df.fold != fold) & tiles_df.is_valid][target_label].value_counts())}')
             train_df = _balance_classes(
                 tiles_df=tiles_df[(tiles_df.fold != fold) & ~tiles_df.is_valid],
                 target=target_label)
             valid_df = _balance_classes(
                 tiles_df=tiles_df[(tiles_df.fold != fold) & tiles_df.is_valid],
                 target=target_label)
-            logger.info(f'{len(train_df)} training tiles')
-            logger.info(f'{len(valid_df)} validation tiles')
+            fold_logger.info(f'{len(train_df)} training tiles')
+            fold_logger.info(f'{len(valid_df)} validation tiles')
 
             test_df = tiles_df[tiles_df.fold == fold]
-            logger.info(f'{len(test_df)} testing tiles')
+            fold_logger.info(f'{len(test_df)} testing tiles')
             assert not test_df.empty, 'Empty fold in cross validation!'
 
             run = Run(
@@ -116,9 +115,9 @@ def crossval(
                 target=target_label,
                 train_df=pd.concat([train_df, valid_df]),
                 test_df=test_df,
-                logger=logger)
+                logger=fold_logger)
 
-            _save_run_files(run, logger=logger)
+            _save_run_files(run, logger=fold_logger)
             fold_runs.append(run)
 
         for run in fold_runs:

@@ -10,6 +10,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn import preprocessing
 from tqdm import tqdm
+from functools import cached_property
 
 from ..experiment import Run, RunGetter
 from ..utils import log_defaults
@@ -33,13 +34,21 @@ class Cohort:
     """
     def __init__(self, tile_path: PathLike, clini_path: PathLike, slide_path: PathLike) -> None:
         self.tile_path = Path(tile_path)
-        self.tile_path = Path(tile_path)
+        self._clini_path, self._slide_path = Path(clini_path), Path(slide_path)
 
-        clini_path, slide_path = Path(clini_path), Path(slide_path)
-        self.clini_df = (pd.read_csv(clini_path, dtype=str) if clini_path.suffix == '.csv'
-                         else pd.read_excel(clini_path, dtype=str))
-        self.slide_df = (pd.read_csv(slide_path, dtype=str) if slide_path.suffix == '.csv'
-                         else pd.read_excel(slide_path, dtype=str))
+    @cached_property
+    def clini_df(self):
+        if self._clini_path.suffix == '.csv':
+            return pd.read_csv(self._clini_path, dtype=str) 
+        else:
+            return pd.read_excel(self._clini_path, dtype=str)
+
+    @cached_property
+    def slide_df(self):
+        if self._slide_path.suffix == '.csv':
+            return pd.read_csv(self._slide_path, dtype=str) 
+        else:
+            return pd.read_excel(self._slide_path, dtype=str)
 
         # TODO strip patient ids, slide names
         #clini_df['PATIENT'] = clini_df['PATIENT'].str.strip()
@@ -321,5 +330,4 @@ def multi_target(get: RunGetter, project_dir: Path, target_labels: Iterable[str]
         target_dir.mkdir(parents=True, exist_ok=True)
 
         for run in get(*args, target_label=target_label, project_dir=target_dir, **kwargs): # type: ignore
-            run.logger = logging.getLogger(f'{target_label}/{run.logger.name}')
             yield run

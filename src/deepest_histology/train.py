@@ -76,7 +76,7 @@ def train(
     counts = torch.tensor([counts[k] for k in dls.vocab])
     weights = 1 - (counts / sum(counts))
 
-    run.logger.info(f'{dls.vocab = }, {weights = }')
+    run.logger.debug(f'{dls.vocab = }, {weights = }')
 
     learn = cnn_learner(
         dls, arch,
