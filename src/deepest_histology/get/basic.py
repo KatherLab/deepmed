@@ -58,7 +58,7 @@ class Cohort:
 
 @log_defaults
 def simple_run(
-        project_dir: Path, /,
+        project_dir: Path,
         target_label: str,
         train_cohorts: Iterable[Cohort] = [],
         test_cohorts: Iterable[Cohort] = [],
@@ -161,7 +161,7 @@ def simple_run(
     else:
         test_df = None
 
-    yield Run(directory=project_dir/target_label,
+    yield Run(directory=project_dir,
                 target=target_label,
                 train_df=train_df,
                 test_df=test_df,

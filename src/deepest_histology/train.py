@@ -58,7 +58,6 @@ def train(
 
     assert train_df is not None, 'Cannot train: no training set given!'
 
-
     dblock = DataBlock(blocks=(ImageBlock, CategoryBlock),
                        get_x=ColReader('tile_path'),
                        get_y=ColReader(target_label),
