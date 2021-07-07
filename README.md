@@ -35,8 +35,6 @@ required
 
 # FAQ / frequently encountered errors
 
-## Common error number 1
-
-lorem ipsum dolor
+check the docs :-) 
 
 
