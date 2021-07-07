@@ -32,3 +32,11 @@ Windows Server 2019 and a CUDA-enabled NVIDIA GPU. The following packages are
 required
 
 [MARKO PLEASE ADD REQUIREMENTS]
+
+# FAQ / frequently encountered errors
+
+## Common error number 1
+
+lorem ipsum dolor
+
+
