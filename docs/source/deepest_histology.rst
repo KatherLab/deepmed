@@ -12,22 +12,6 @@ Subpackages
 Submodules
 ----------
 
-deepest\_histology.deploy module
---------------------------------
-
-.. automodule:: deepest_histology.deploy
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-deepest\_histology.experiment module
-------------------------------------
-
-.. automodule:: deepest_histology.experiment
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 deepest\_histology.experiment\_imports module
 ---------------------------------------------
 
@@ -40,14 +24,6 @@ deepest\_histology.metrics module
 ---------------------------------
 
 .. automodule:: deepest_histology.metrics
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-deepest\_histology.train module
--------------------------------
-
-.. automodule:: deepest_histology.train
    :members:
    :undoc-members:
    :show-inheritance:
@@ -67,7 +43,6 @@ deepest\_histology.utils module
    :members:
    :undoc-members:
    :show-inheritance:
-
 
 Module contents
 ---------------

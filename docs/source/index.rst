@@ -10,7 +10,8 @@ Welcome to Deepest Histology's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   simple_training
+   users_guide
+   deepest_histology
 
 
 Indices and tables

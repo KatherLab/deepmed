@@ -24,14 +24,13 @@ In the Deepest Histology pipeline, both training and deployment is performed on
 We will now a sets of cohorts one to train our data on::
 
     #TODO make this different cohorts
-    train_cohorts = {
-        Cohort(tile_path='E:/TCGA-BRCA-DX/BLOCKS_NORM',
+    train_cohorts_df = pd.concat([
+        cohort(tile_path='E:/TCGA-BRCA-DX/BLOCKS_NORM',
                clini_path='G:/immunoproject/TCGA-IMMUNO_Clini_Slide/TCGA-BRCA-IMMUNO_CLINI.xlsx',
                slide_path='G:/immunoproject/TCGA-IMMUNO_Clini_Slide/TCGA-BRCA_SLIDE.csv'),
-        Cohort(tile_path='E:/TCGA-BRCA-DX/BLOCKS_NORM',
+        cohort(tile_path='E:/TCGA-BRCA-DX/BLOCKS_NORM',
                clini_path='G:/immunoproject/TCGA-IMMUNO_Clini_Slide/TCGA-BRCA-IMMUNO_CLINI.xlsx',
-               slide_path='G:/immunoproject/TCGA-IMMUNO_Clini_Slide/TCGA-BRCA_SLIDE.csv')
-    }
+               slide_path='G:/immunoproject/TCGA-IMMUNO_Clini_Slide/TCGA-BRCA_SLIDE.csv')])
 
 When using Windows-like paths with backslashes, this string ought to be prefixed
 with an ``r`` to prevent the backslashes to be interpreted as character escapes:
@@ -53,7 +52,7 @@ training.  Let's construct our simple run getter::
     simple_train_get = partial(
         get.simple_run,
         target_label='isMSIH',
-        train_cohorts=train_cohorts,
+        train_cohorts_df=train_cohorts_df,
         max_tile_num=100,
         na_values=['inconclusive'])
 
@@ -64,7 +63,7 @@ That is quite a lot to take in!  Let's break it down line by line.
     describe how we want this training to be performed.
 *   ``target_label='isMSIH'`` is the label we want to predict with our model.
     The clinical table is expected to have a column with that name.
-*   ``train_cohorts=train_cohorts`` are the cohorts we want to use for training.
+*   ``train_cohorts_df=train_cohorts_df`` are the cohorts we want to use for training.
 *   ``max_tile_num=100`` states how many of a patient's tiles we want to sample.
     Often times, increasing the number of tiles for a patient has only a minor
     effect on the actual training result.  Thus sampling from a patient's tiles
@@ -95,42 +94,48 @@ Deploying the Model
 
 After our model has finished training, we may want to deploy it on another
 dataset to ascertain its performance.  This is done quite similarly to the
-training process.  We already `defined our test cohorts above`_, 
-off by defining another run getter::
+training process.  After defining our test cohorts, we can construct a run
+getter quite similarly to how we did before::
 
     # file: simple_deploy.py
 
     from deepest_histology.experiment_imports import *
 
-    test_cohorts = {
-        Cohort(tile_path='E:/TCGA-BRCA-DX/BLOCKS_NORM',
+    test_cohorts_df = \
+        cohort(tile_path='E:/TCGA-BRCA-DX/BLOCKS_NORM',
                clini_path='G:/immunoproject/TCGA-IMMUNO_Clini_Slide/TCGA-BRCA-IMMUNO_CLINI.xlsx',
                slide_path='G:/immunoproject/TCGA-IMMUNO_Clini_Slide/TCGA-BRCA_SLIDE.csv')
-    }
 
     simple_deploy_get = partial(
         get.simple_run,
         target_label='isMSIH',
-        test_cohorts=test_cohorts,
+        test_cohorts_df=test_cohorts_df,
         max_tile_num=100,
         na_values=['inconclusive'])
 
 Observe how the getter has the exact same structure as the one above, with the
-only exception being that we specify ``test_cohorts`` instead of
-``train_cohorts`` this time around.
+only exception being that we specify ``test_cohorts_df`` instead of
+``train_cohorts_df`` this time around.
+
+Next we have to specify how and where to load our models from::
+
+    project_dir='/path/to/deployment/project/dir',
+    load = partial(
+        get.load,
+        project_dir=project_dir,
+        training_project_dir='/path/to/training/project/dir')
 
 We can now deploy our model like this::
 
     if __name__ == '__main__':
         do_experiment(
-            project_dir='/path/to/deployment/project/dir',
+            project_dir=project_dir,
             get=simple_deploy_get,
-            model_path='/path/to/training/project/dir/export.pkl')
+            train=load)
 
-The ``model_path`` argument points to the saved trained model, which should
-reside in the training project's directory.
-
-.. _defined our test cohorts above: #defining-the-cohorts
+Usually, the train parameter is used to further define the modalities of a
+network's training.  In this case, we say that instead of training a model we
+want to load a pretrained model.
 
 
 Defining Evaluation Metrics
@@ -160,10 +165,37 @@ re-running the script should yield a file ``stats.csv`` which contains the
 requested metrics::
 
     if __name__ == '__main__':
+        project_dir = '/path/to/deployment/project/dir'
         do_experiment(
-            project_dir='/path/to/deployment/project/dir',
+            project_dir=project_dir,
             get=simple_deploy_get,
-            model_path='/path/to/training/project/dir/export.pkl',
+            train=partial(
+                get.load,
+                project_dir=project_dir,
+                training_project_dir='/path/to/training/project/dir')
             evaluator_groups=[evaluators])
 
 .. _area under the receiver operating characteristic curve: https://en.wikipedia.org/wiki/Receiver_operating_characteristic
+
+
+Doing it All at Once
+--------------------
+
+If we already know what data we want to train and deploy our model on
+beforehand, we can combine the two steps into one experiment::
+
+    from deepest_histology.experiment_imports import *
+
+    if __name__ == '__main__':
+        do_experiment(
+            project_dir='/path/to/project/dir',
+        get=partial(
+            get.simple_run,
+            target_label='isMSIH',
+            train_cohorts_df=train_cohorts_df,
+            max_tile_num=100,
+            na_values=['inconclusive'])
+        evaluator_groups=[evaluators])
+
+Since we train our models in the same step as we deploy them, we don't need to
+specify where to load our models from this time.

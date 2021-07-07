@@ -1,5 +1,5 @@
-import logging
 from typing import Optional, Callable, Iterator, Union
+from typing_extensions import Protocol
 from pathlib import Path
 from dataclasses import dataclass
 import pandas as pd
@@ -33,19 +33,18 @@ class Run:
     - tile_path: Path
     """
 
-    logger: logging.Logger = logging.getLogger('deepest_histology')
-    """Logger to write messages to."""
 
+class RunGetter(Protocol):
+    def __call__(self, project_dir: Path) -> Iterator[Run]:
+        """A function which creates a series of runs.
 
-RunGetter = Callable[[Path], Iterator[Run]]
-"""A function which creates a series of runs.
+        Args:
+            project_dir:  The directory to save the run's data in.
 
-Args:
-    project_dir:  The directory to save the run's data in.
-
-Returns:
-    An iterator over all runs.
-"""
+        Returns:
+            An iterator over all runs.
+        """
+        ...
 
 Trainer = Callable[[Run], Learner]
 """A function which trains a model.
@@ -57,18 +56,16 @@ Returns:
     The trained model.
 """
 
-Deployer = Callable[[Learner, Run], pd.DataFrame]
+Deployer = Callable[[Learner, Run], None]
 """A function which deployes a model.
 
-Required kwargs:
+Writes the results to a file ``predictions.csv.zip`` in the run directory.
+
+Args:
     model:  The model to test on.
     target_label:  The name to be given to the result column.
     test_df:  A dataframe specifying which tiles to deploy the model on.
     result_dir:  A folder to write intermediate results to.
-
-Returns:
-    `test_df`, but with at least an additional column for the target
-    predictions.
 """
 
 

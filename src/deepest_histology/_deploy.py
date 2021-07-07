@@ -1,4 +1,5 @@
-from pathlib import Path
+import logging
+from typing import Optional
 
 import pandas as pd
 from fastai.vision.all import Learner
@@ -7,13 +8,19 @@ from .utils import log_defaults
 
 __all__ = ['deploy']
 
-__all__ = ['deploy']
-
 
 @log_defaults
-def deploy(learn: Learner, run) -> pd.DataFrame:
+def deploy(learn: Learner, run) -> None:
+    logger = logging.getLogger(str(run.directory))
+
+    if run.test_df is None:
+        logger.warning('No testing set found! Skipping deployment...')
+        return
+    elif (preds_path := run.directory/'predictions.csv.zip').exists():
+        logger.warning(f'{preds_path} already exists, skipping deployment...')
+        return
+
     test_df, target_label = run.test_df, run.target
-    assert test_df is not None, 'Cannot deploy: no testing set given!'
 
     test_dl = learn.dls.test_dl(test_df)
     # inner needed so we don't jump GPUs
@@ -27,4 +34,4 @@ def deploy(learn: Learner, run) -> pd.DataFrame:
     # class prediction (i.e. the class w/ the highest score for each tile)
     test_df[f'{target_label}_pred'] = learn.dls.vocab.map_ids(class_preds)
 
-    return test_df
+    test_df.to_csv(preds_path, index=False, compression='zip')

@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 
 import logging
-from zipfile import BadZipFile
 from typing import Iterable, Optional, Callable, Sequence, Tuple, Iterator
 from pathlib import Path
 from multiprocessing import Manager, Process
 from multiprocessing.pool import ThreadPool
 from multiprocessing.synchronize import Semaphore
-from functools import partial
-
-from fastai.vision.all import Learner, load_learner
+from functools import partial, lru_cache
 
 import pandas as pd
 import torch
 
-from . import train, deploy
+from ._train import train
+from ._deploy import deploy
 from .utils import Lazy
 from .metrics import Metric
 from .types import *
@@ -29,9 +27,8 @@ logger = logging.getLogger(__name__)
 def do_experiment(
         project_dir: PathLike,
         get: RunGetter,
-        train: Optional[Trainer] = train,
-        deploy: Optional[Deployer] = deploy,
-        model_path: Optional[PathLike] = None,
+        train: Trainer = train,
+        deploy: Deployer = deploy,
         num_concurrent_runs: int = 4,
         devices = [torch.cuda.current_device()],
         evaluator_groups: Sequence[Iterable[Metric]] = []) -> None:
@@ -66,19 +63,19 @@ def do_experiment(
             manager.Semaphore(max(1, (num_concurrent_runs+len(devices)-1)//len(devices)))  # type: ignore
             for _ in devices]
         run_args = ({'run': run, 'train': train, 'deploy': deploy, 'devices': devices,
-                     'capacities': capacities, 'model_path': model_path}
-                     for run in get(project_dir))
+                     'capacities': capacities}
+                     for run in get(project_dir=project_dir))
 
         # We use a ThreadPool which starts processes so our launched processes are:
         #  1. Terminated after each training run so we don't leak resources
         #  2. We can spawn more processes in the launched subprocesses (not possible with Pool)
         with ThreadPool(num_concurrent_runs or 1) as pool:
             # only use pool if we actually want to run multiple runs in parallel
-            runs = filter(
-                lambda x: x is not None,    # remove all failed runs
-                (pool.imap(_do_run_wrapper, run_args, chunksize=1) if num_concurrent_runs >= 1
-                 else (_do_run_wrapper(args) for args in run_args)))
-            _evaluate_runs(runs, project_dir=project_dir, evaluator_groups=evaluator_groups)
+            runs = (pool.imap(_do_run_wrapper, run_args, chunksize=1) if num_concurrent_runs >= 1
+                    else (_do_run_wrapper(args, spawn_process=False) for args in run_args))
+            runs = (run for run in runs if run is not None)
+            _evaluate_runs(
+                runs, project_dir=project_dir, evaluator_groups=evaluator_groups) # type: ignore
 
 
 def _evaluate_runs(
@@ -126,7 +123,7 @@ def _evaluate_runs(
                 last_run.target, project_dir,
                 paths_and_evaluator_groups[first_differing_level+1:])
         last_run, last_run_dir_rel = run, run_dir_rel
-    else:
+    if last_run:
         paths_and_evaluator_groups = list(zip([*reversed(run_dir_rel.parents), run_dir_rel],
                                                 evaluator_groups))
         _run_evaluators(run.target, project_dir, paths_and_evaluator_groups)
@@ -172,22 +169,18 @@ def _raise_df_column_level(df, level):
     return pd.DataFrame(df.values, index=df.index, columns=columns)
 
 
+@lru_cache(maxsize=4)
 def _get_preds_df(result_dir: Path) -> pd.DataFrame:
     # load predictions
     if (preds_path := result_dir/'predictions.csv.zip').exists():
-        try:
-            preds_df = pd.read_csv(preds_path)
-        except BadZipFile:
-            # delete file and try to regenerate it
-            preds_path.unlink()
-            return _get_preds_df(result_dir)
+        preds_df = pd.read_csv(preds_path)
     else:
         # create an accumulated predictions df if there isn't one already
         dfs = []
-        #TODO do this recursively if needed
-        for df_path in result_dir.glob('*/predictions.csv.zip'):
+        for df_path in result_dir.glob('**/predictions.csv.zip'):
             df = pd.read_csv(df_path)
             # column which tells us which subset these predictions are from
+            #TODO do this for each directory level from result_dir to df_path
             df[f'subset_{result_dir.name}'] = df_path.name
             dfs.append(df)
 
@@ -198,75 +191,41 @@ def _get_preds_df(result_dir: Path) -> pd.DataFrame:
 
 
 def _do_run(
-        run: Run, train: Optional[Trainer], deploy: Optional[Deployer], model_path: Path,
-        devices: Iterable, capacities: Iterable[Semaphore] = []) \
+        run: Run, train: Trainer, deploy: Deployer, devices: Iterable,
+        capacities: Iterable[Semaphore] = []) \
         -> None:
-    assert not (model_path and run.train_df is not None), \
-        'Specified both a model to deploy on and a training procedure'
-
-    run.logger.info(f'Starting run')
+    logger = logging.getLogger(str(run.directory))
+    logger.info(f'Starting run')
 
     for device, capacity in zip(devices, capacities):
         # search for a free gpu
         if not capacity.acquire(blocking=False): continue   # type: ignore
         try:
             with torch.cuda.device(device):
-                learn = (_train(train=train, run=run)
-                        if train and run.train_df is not None
-                        else None)
-
-                if deploy and run.test_df is not None:
-                    _deploy(deploy=deploy, learn=learn, run=run, model_path=model_path)
-
+                learn = train(run)
+                deploy(learn, run)
                 break
         finally: capacity.release()
     else:
         raise RuntimeError('Could not find a free GPU!')
 
 
-def _do_run_wrapper(kwargs) -> Optional[Run]:
+def _do_run_wrapper(kwargs, spawn_process: bool = True) -> Optional[Run]:
     """Starts a new process to train a model."""
     run = kwargs['run']
     # Starting a new process guarantees that the allocaded CUDA resources will
     # be released upon completion of training.
-    p = Process(target=_do_run, kwargs=kwargs)
-    p.start()
-    p.join()
-
-    if p.exitcode == 0:
-        return run
+    if spawn_process:
+        p = Process(target=_do_run, kwargs=kwargs)
+        p.start()
+        p.join()
+        if p.exitcode == 0:
+            return run
+        else:
+            return None
     else:
-        return None
-
-
-def _train(train: Trainer, run: Run) -> Learner:
-    model_path = run.directory/'export.pkl'
-    if model_path.exists():
-        run.logger.warning(f'{model_path} already exists, using old model!')
-        return load_learner(model_path)
-
-    run.logger.info('Starting training')
-    learn = train(run)
-
-    return learn
-
-
-def _deploy(
-    deploy: Deployer, learn: Optional[Learner], run: Run, model_path: Optional[PathLike]) -> pd.DataFrame:
-    preds_path = run.directory/'predictions.csv.zip'
-    if preds_path.exists():
-        run.logger.warning(f'{preds_path} already exists, using old predictions!')
-        return pd.read_csv(preds_path)
-
-    if not learn:
-        run.logger.info('Loading model')
-        learn = _load_learner_to_device(model_path or run.directory/'export.pkl')
-
-    run.logger.info('Getting predictions')
-    preds_df = deploy(learn, run)
-    preds_df.to_csv(preds_path, index=False, compression='zip')
-
-    return preds_df
+        _do_run(**kwargs)
+        return run
 
 
 def _load_learner_to_device(fname, device=None):

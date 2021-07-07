@@ -65,7 +65,7 @@ class Grouped:
         group_dir = result_dir/self.by
         group_dir.mkdir(exist_ok=True)
         grouped_df = _group_df(preds_df, target_label, self.by, self.mode)
-        if (df := self.metric(target_label, grouped_df, group_dir)) is not None:
+        if (df := self.metric(target_label, grouped_df, group_dir)) is not None:    # type: ignore
             columns = pd.MultiIndex.from_product([df.columns, [self.by]])
             return pd.DataFrame(df.values, index=df.index, columns=columns)
 
@@ -103,7 +103,7 @@ class SubGrouped:
         for group, group_df in preds_df.groupby(self.by):
             group_dir = result_dir/group
             group_dir.mkdir(parents=True, exist_ok=True)
-            if (df := self.metric(target_label, group_df, group_dir)) is not None:
+            if (df := self.metric(target_label, group_df, group_dir)) is not None:  # type: ignore
                 columns = pd.MultiIndex.from_product([df.columns, [group]])
                 dfs.append(pd.DataFrame(df.values, index=df.index, columns=columns))
 
