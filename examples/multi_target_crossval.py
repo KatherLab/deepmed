@@ -11,7 +11,7 @@ if __name__ == '__main__':
             get.crossval,
             get.simple_run,
             cohorts_df=cohort(
-                tile_path='D:/TCGA-BRCA-DX/BLOCKS_NORM_MACENKO',
+                tiles_path='D:/TCGA-BRCA-DX/BLOCKS_NORM_MACENKO',
                 clini_path='D:/BRCA_Docs/TCGA-BRCA-DX_CLINI.xlsx',
                 slide_path='D:/BRCA_Docs/TCGA-BRCA-DX_SLIDE_FULLNAMES.csv'),
             target_labels=['ERStatus', 'PRStatus', 'HER2FinalStatus'],

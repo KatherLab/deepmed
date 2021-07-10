@@ -21,10 +21,10 @@ PathLike = Union[str, Path]
 
 
 def cohort(
-        tile_path: PathLike, clini_path: PathLike, slide_path: PathLike,
+        tiles_path: PathLike, clini_path: PathLike, slide_path: PathLike,
         patient_label: str = 'PATIENT', slidename_label: str = 'FILENAME') \
         -> pd.DataFrame:
-    tile_path, clini_path, slide_path = Path(tile_path), Path(clini_path), Path(slide_path)
+    tiles_path, clini_path, slide_path = Path(tiles_path), Path(clini_path), Path(slide_path)
 
     clini_df = (
         pd.read_csv(clini_path, dtype=str) if clini_path.suffix == '.csv'
@@ -34,11 +34,11 @@ def cohort(
         else pd.read_excel(slide_path, dtype=str))
 
     cohort_df = clini_df.merge(slide_df, on=patient_label)
-    cohort_df['tile_path'] = tile_path/cohort_df[slidename_label]
+    cohort_df['tiles_path'] = tiles_path/cohort_df[slidename_label]
 
     logger.debug(f'#slides in {slide_path}: {len(slide_df)}')
     logger.debug(f'#patients in {clini_path}: {len(clini_df)}')
-    logger.debug(f'#patients with slides for {tile_path}: {len(cohort_df)}')
+    logger.debug(f'#patients with slides for {tiles_path}: {len(cohort_df)}')
 
     return cohort_df
 
@@ -211,15 +211,15 @@ def _get_tiles(
     """Create df containing patient, tiles, other data."""
     random.seed(seed)   #FIXME doesn't work
     tiles_dfs = []
-    for patient, data in tqdm(cohorts_df.groupby('PATIENT')):
-        tiles = [file
-                 for tile_dir in data.tile_path
+    for _, data in tqdm(cohorts_df.groupby('PATIENT')):
+        tiles = [(tile_dir, file)
+                 for tile_dir in data.tiles_path
                  if tile_dir.exists()
                  for file in tile_dir.iterdir()]
         tiles = random.sample(tiles, min(len(tiles), max_tile_num))
+        tiles_df = pd.DataFrame(tiles, columns=['tiles_path', 'tile_path'])
         
-        tiles_dfs.append(data.drop(columns='tile_path')
-                             .merge(pd.Series(tiles, name='tile_path'), how='cross'))
+        tiles_dfs.append(data.merge(tiles_df, on='tiles_path').drop(columns='tiles_path'))
 
     tiles_df = pd.concat(tiles_dfs).reset_index(drop=True)
     logger.info(f'Found {len(tiles_df)} tiles for {len(tiles_df["PATIENT"].unique())} patients')
