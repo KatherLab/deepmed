@@ -80,11 +80,15 @@ def crossval(
             *args,
             project_dir=project_dir/f'fold_{fold}',
             target_label=target_label,
-            train_cohorts_df=folded_df[folded_df.fold == fold],
-            test_cohorts_df=folded_df[folded_df.fold != fold],
+            train_cohorts_df=folded_df[folded_df.fold != fold],
+            test_cohorts_df=folded_df[folded_df.fold == fold],
             **kwargs)
     ]
     for run in fold_runs:
+        assert (
+            run.train_df is None or run.test_df is None
+            or not (set(run.train_df[patient_label]) & set(run.test_df[patient_label]))), \
+            "Patient intersection between training and testing set!"
         yield(run)
 
 
@@ -99,10 +103,10 @@ def _create_folds(
     # We enumerate each fold; this way, the training set for the `k`th iteration can be easily
     # obtained through `df[df.fold != k]`. Additionally, we sample a validation set for early
     # stopping.
+    patients = cohorts_df.groupby(patient_label)[target_label].first()
     cohorts_df['fold'] = 0
     for fold, (_, test_idx) \
-            in enumerate(kf.split(cohorts_df[patient_label], cohorts_df[target_label])):
-        #FIXME: remove ugly iloc magic to prevent `SettingWithCopyWarning`
-        cohorts_df.iloc[test_idx, cohorts_df.columns.get_loc('fold')] = fold
+            in enumerate(kf.split(patients.index, patients)):
+        cohorts_df.loc[cohorts_df[patient_label].isin(patients.iloc[test_idx].index), 'fold'] = fold
 
     return cohorts_df

@@ -18,11 +18,11 @@ sys.path.insert(0, os.path.abspath('../../src'))
 # -- Project information -----------------------------------------------------
 
 project = 'Deepest Histology'
-copyright = '2021, Marko van Treeck'
+copyright = '2021, Kather Lab'
 author = 'Marko van Treeck'
 
 # The full version, including alpha/beta/rc tags
-release = '0.2.0'
+release = '0.2.1'
 
 
 # -- General configuration ---------------------------------------------------
