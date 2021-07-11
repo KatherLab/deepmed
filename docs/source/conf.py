@@ -17,12 +17,14 @@ sys.path.insert(0, os.path.abspath('../../src'))
 
 # -- Project information -----------------------------------------------------
 
+import deepest_histology
+
 project = 'Deepest Histology'
-copyright = '2021, Kather Lab'
-author = 'Marko van Treeck'
+copyright = deepest_histology.__copyright__
+author = deepest_histology.__author__
 
 # The full version, including alpha/beta/rc tags
-release = '0.2.1'
+release = deepest_histology.__version__
 
 
 # -- General configuration ---------------------------------------------------
