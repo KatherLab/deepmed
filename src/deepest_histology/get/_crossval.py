@@ -1,4 +1,5 @@
 import logging
+from multiprocessing.managers import SyncManager
 from typing import Iterable, Iterator, Any
 from pathlib import Path
 from typing_extensions import Protocol
@@ -9,13 +10,14 @@ from sklearn.model_selection import StratifiedKFold
 from .._experiment import Run
 from ._simple import _prepare_cohorts
 from ..utils import log_defaults
+from ..metrics import Evaluator
 
 
 class CrossvalBaseRunGetter(Protocol):
     """The signature of a run getter which can be modified by ``crossval``."""
     def __call__(
             self, *args,
-            project_dir: Path, target_label: str,
+            project_dir: Path, manager: SyncManager, target_label: str,
             train_cohorts_df: pd.DataFrame, test_cohorts_df: pd.DataFrame, **kwargs) \
             -> Iterator[Run]:
         ...
@@ -27,12 +29,14 @@ def crossval(
         project_dir: Path,
         target_label: str,
         cohorts_df: pd.DataFrame,
+        manager: SyncManager,
         folds: int = 3,
         seed: int = 0,
         n_bins: int = 2,
         na_values: Iterable[Any] = [],
         min_support: int = 10,
         patient_label: str = 'PATIENT',
+        crossval_evaluators: Iterable[Evaluator] = [],
         *args, **kwargs) \
         -> Iterator[Run]:
     """Generates cross validation runs for a single target.
@@ -80,6 +84,7 @@ def crossval(
             *args,
             project_dir=project_dir/f'fold_{fold}',
             target_label=target_label,
+            manager=manager,
             train_cohorts_df=folded_df[folded_df.fold != fold],
             test_cohorts_df=folded_df[folded_df.fold == fold],
             **kwargs)
@@ -89,7 +94,14 @@ def crossval(
             run.train_df is None or run.test_df is None
             or not (set(run.train_df[patient_label]) & set(run.test_df[patient_label]))), \
             "Patient intersection between training and testing set!"
-        yield(run)
+        yield run
+
+    yield Run(
+        directory=project_dir,
+        target=target_label,
+        requirements=[run.done for run in fold_runs if run.done is not None],
+        evaluators=crossval_evaluators,
+        done=manager.Event())
 
 
 def _create_folds(

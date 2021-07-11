@@ -1,7 +1,7 @@
 import shutil
 import os
-from typing import Callable, Iterable
 import logging
+from typing import Callable, Iterable, Optional
 from pathlib import Path
 from fastai.callback.tracker import TrackerCallback
 
@@ -32,7 +32,8 @@ def train(
             flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224),
         metrics: Iterable[Callable] = [BalancedAccuracy()],
         patience: int = 3,
-        monitor: str = 'valid_loss') -> Learner:
+        monitor: str = 'valid_loss',
+        ) -> Optional[Learner]:
     """Trains a single model.
 
     Args:
@@ -62,7 +63,9 @@ def train(
 
     target_label, train_df, result_dir = run.target, run.train_df, run.directory
 
-    assert train_df is not None, 'Cannot train: no training set given!'
+    if train_df is None:
+        logger.debug('Cannot train: no training set given!')
+        return None
 
     dblock = DataBlock(blocks=(ImageBlock, CategoryBlock),
                        get_x=ColReader('tile_path'),

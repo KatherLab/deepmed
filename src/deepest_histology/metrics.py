@@ -21,7 +21,6 @@ from dataclasses import dataclass
 from typing import Optional, Iterable, Callable
 from pathlib import Path
 from enum import Enum, auto
-from functools import lru_cache
 
 import pandas as pd
 from PIL import Image
@@ -29,11 +28,11 @@ from PIL import Image
 import sklearn.metrics as skm
 
 __all__ = [
-    'Metric', 'Grouped', 'SubGrouped', 'aggregate_stats', 'f1', 'confusion_matrix', 'auroc',
+    'Evaluator', 'Grouped', 'SubGrouped', 'aggregate_stats', 'f1', 'confusion_matrix', 'auroc',
     'count', 'top_tiles', 'roc', 'GroupMode', 'p_value']
 
 
-Metric = Callable[[str, pd.DataFrame, Path], Optional[pd.DataFrame]]
+Evaluator = Callable[[str, pd.DataFrame, Path], Optional[pd.DataFrame]]
 
 class GroupMode(Enum):
     """Describes how to calculate grouped predictions (see Grouped)."""
@@ -53,7 +52,7 @@ class Grouped:
     same value together.  Furthermore, the result dir given to the result dir
     will be extended by a subdirectory named after the grouped-by property.
     """
-    metric: Metric
+    evaluator: Evaluator
     """Metric to evaluate on the grouped predictions."""
     mode: GroupMode = GroupMode.prediction_rate
     """Mode to group predictions."""
@@ -65,14 +64,13 @@ class Grouped:
         group_dir = result_dir/self.by
         group_dir.mkdir(exist_ok=True)
         grouped_df = _group_df(preds_df, target_label, self.by, self.mode)
-        if (df := self.metric(target_label, grouped_df, group_dir)) is not None:    # type: ignore
+        if (df := self.evaluator(target_label, grouped_df, group_dir)) is not None: # type: ignore
             columns = pd.MultiIndex.from_product([df.columns, [self.by]])
             return pd.DataFrame(df.values, index=df.index, columns=columns)
 
         return None
 
 
-@lru_cache(maxsize=64)
 def _group_df(preds_df: pd.DataFrame, target_label: str, by: str, mode: GroupMode) -> pd.DataFrame:
     grouped_df = preds_df.groupby(by).first()
     for class_ in preds_df[target_label].unique():
@@ -90,7 +88,7 @@ def _group_df(preds_df: pd.DataFrame, target_label: str, by: str, mode: GroupMod
 @dataclass
 class SubGrouped:
     """Calculates a metric for different subgroups."""
-    metric: Metric
+    evaluator: Evaluator
     by: str
     """The property to group by.
 
@@ -103,7 +101,7 @@ class SubGrouped:
         for group, group_df in preds_df.groupby(self.by):
             group_dir = result_dir/group
             group_dir.mkdir(parents=True, exist_ok=True)
-            if (df := self.metric(target_label, group_df, group_dir)) is not None:  # type: ignore
+            if (df := self.evaluator(target_label, group_df, group_dir)) is not None: # type: ignore
                 columns = pd.MultiIndex.from_product([df.columns, [group]])
                 dfs.append(pd.DataFrame(df.values, index=df.index, columns=columns))
 

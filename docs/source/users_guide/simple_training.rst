@@ -164,16 +164,23 @@ If we now extend our deployment script to make use of these evaluators,
 re-running the script should yield a file ``stats.csv`` which contains the
 requested metrics::
 
+    project_dir = '/path/to/deployment/project/dir'
+    simple_eval_get = partial(
+        get.simple_run,
+        target_label='isMSIH',
+        test_cohorts_df=test_cohorts_df,
+        max_tile_num=100,
+        na_values=['inconclusive'],
+        evaluators=evaluators)
+
     if __name__ == '__main__':
-        project_dir = '/path/to/deployment/project/dir'
         do_experiment(
             project_dir=project_dir,
             get=simple_deploy_get,
             train=partial(
                 get.load,
                 project_dir=project_dir,
-                training_project_dir='/path/to/training/project/dir')
-            evaluator_groups=[evaluators])
+                training_project_dir='/path/to/training/project/dir'))
 
 .. _area under the receiver operating characteristic curve: https://en.wikipedia.org/wiki/Receiver_operating_characteristic
 

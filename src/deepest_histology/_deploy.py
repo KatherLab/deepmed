@@ -10,15 +10,15 @@ __all__ = ['deploy']
 
 
 @log_defaults
-def deploy(learn: Learner, run) -> None:
+def deploy(learn: Learner, run) -> Optional[pd.DataFrame]:
     logger = logging.getLogger(str(run.directory))
 
     if run.test_df is None:
         logger.warning('No testing set found! Skipping deployment...')
-        return
+        return None
     elif (preds_path := run.directory/'predictions.csv.zip').exists():
         logger.warning(f'{preds_path} already exists, skipping deployment...')
-        return
+        return pd.read_csv(preds_path, low_memory=False)
 
     test_df, target_label = run.test_df, run.target
 
@@ -35,3 +35,5 @@ def deploy(learn: Learner, run) -> None:
     test_df[f'{target_label}_pred'] = learn.dls.vocab.map_ids(class_preds)
 
     test_df.to_csv(preds_path, index=False, compression='zip')
+
+    return test_df

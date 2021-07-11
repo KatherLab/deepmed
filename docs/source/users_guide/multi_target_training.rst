@@ -77,12 +77,14 @@ script::
         get.simple_run,
         test_cohorts=test_cohorts,
         max_tile_num=100,
-        na_values=['inconclusive'])
+        na_values=['inconclusive'],
+        evaluators=[Grouped(auroc), Grouped(count)])
 
     multi_deploy_get = partial(
         get.multi_target,
         simple_deploy_get,
-        target_labels=['isMSIH', 'gender'])
+        target_labels=['isMSIH', 'gender']
+        multi_target_evaluators=[aggregate_stats])
 
     project_dir='/path/to/deployment/project/dir',
 
@@ -93,45 +95,4 @@ script::
             train=partial(
                 get.load,
                 project_dir=project_dir,
-                training_project_dir='/path/to/training/project/dir')
-            evaluator_groups=[
-                [],
-                [Grouped(auroc), Grouped(count)]
-            ])
-
-Evaluator Groups
-^^^^^^^^^^^^^^^^
-
-The attentive reader will have seen that the structure of the
-``evaluator_groups`` argument has also slightly changed.  To understand how, we
-shall have a quick look at how evaluator groups work.
-
-During deployment, the user can supply multiple evaluator groups.  The first
-evaluator group is applied to the project directory itself, the second to all
-immediate subdirectories, the third to the subdirectories of these, and so
-forth.  Since the multi target adapter added one directory level to our project
-structure, we thus have to add an additional empty evaluator group before our
-AUROC and patient count metrics.
-
-::
-
-    /path/to/deployment/project/dir ← Calculate []
-    ├── isMSIH                   ← Calculate [auroc, count]
-    │   └── predictions.csv.zip
-    └── gender                   ← Calculate [auroc, count]
-         └── predictions.csv.zip
-
-After running the deployment script, there will be a ``stats.csv`` in each of
-the subdirectories.  While for this few targets it is still feasible to look at
-each of these individually, doing so quickly becomes tedious as the number of
-targets increases.  We can forgo this hassle by using the ``aggregate_stats``
-evaluator, which combines ``stats.csv``s into a single statistics file::
-
-    evaluator_groups=[
-        [aggregate_stats],
-        [Grouped(auroc), Grouped(count)]
-    ]
-
-After rerunning the deployemnt script, the project directory should now have a
-``stats.csv`` which combines all the the subdirectories' statistics information
-into one handy file.
+                training_project_dir='/path/to/training/project/dir') ])

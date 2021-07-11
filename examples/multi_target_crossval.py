@@ -17,14 +17,13 @@ if __name__ == '__main__':
             target_labels=['ERStatus', 'PRStatus', 'HER2FinalStatus'],
             max_tile_num=8,
             valid_frac=.2,
-            na_values=['Not Available', 'Equivocal', 'Not Performed', 'Performed but Not Available']
-        ),
+            na_values=['Not Available', 'Equivocal', 'Not Performed', 'Performed but Not Available'],
+            evaluator_groups=[partial(aggregate_stats, group_levels=[-3, -1])],
+            crossval_evaluators=[aggregate_stats],
+            evaluators=[Grouped(auroc), Grouped(count)],
+            ),
         train=partial(
             train,
             batch_size=96,
             max_epochs=1),
-        evaluator_groups=[
-            [partial(aggregate_stats, group_levels=[-3, -1])],
-            [aggregate_stats],
-            [Grouped(auroc), Grouped(count)]],
         num_concurrent_runs=4)

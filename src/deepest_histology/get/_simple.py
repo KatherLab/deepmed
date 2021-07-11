@@ -1,3 +1,4 @@
+from multiprocessing.managers import SyncManager
 import random
 import logging
 from typing import Iterable, Sequence, Iterator, Optional, Any, Union
@@ -10,8 +11,9 @@ from sklearn.model_selection import train_test_split
 from sklearn import preprocessing
 from tqdm import tqdm
 
-from .._experiment import Run
+from ..metrics import Evaluator
 from ..utils import log_defaults
+from .._experiment import Run
 
 
 logger = logging.getLogger(__name__)
@@ -46,6 +48,7 @@ def cohort(
 @log_defaults
 def simple_run(
         project_dir: Path,
+        manager: SyncManager,
         target_label: str,
         train_cohorts_df: Optional[pd.DataFrame] = None,
         test_cohorts_df: Optional[pd.DataFrame] = None,
@@ -56,7 +59,8 @@ def simple_run(
         valid_frac: float = .15,
         n_bins: int = 2,
         na_values: Iterable[Any] = [],
-        min_support: int = 10) \
+        min_support: int = 10,
+        evaluators: Iterable[Evaluator] = []) \
         -> Iterator[Run]:
     """Creates runs for a basic test-deploy procedure.
 
@@ -158,7 +162,9 @@ def simple_run(
         directory=project_dir,
         target=target_label,
         train_df=train_df,
-        test_df=test_df)
+        test_df=test_df,
+        evaluators=evaluators,
+        done=manager.Event())
 
 
 def _prepare_cohorts(
