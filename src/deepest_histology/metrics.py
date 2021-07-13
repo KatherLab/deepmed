@@ -301,7 +301,7 @@ def top_tiles(
     best-classified patients.
     """
     for class_ in preds_df[f'{target_label}_pred'].unique():
-        plt.figure(figsize=(n_patients, n_tiles), dpi=300)
+        plt.figure(figsize=(n_patients, n_tiles), dpi=600)
         # get patients with the best overall ratings for the label
         patients = (preds_df.groupby(patient_label)[target_label]
                             .agg(lambda x: sum(x == class_) / len(x)).nlargest(n_patients))
