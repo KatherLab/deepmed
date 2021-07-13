@@ -1,4 +1,4 @@
-# Welcome to Deepest Histology
+# Welcome to Direct End-to-End Pipeline for MEDical Imaging
 
 ## What is this?
 
