@@ -35,6 +35,8 @@ required
 
 # FAQ / frequently encountered errors
 
-check the docs :-) 
+check the docs :-)
+
+[Documentation](https://deep-med-docs.s3.eu-central-1.amazonaws.com/index.html)
 
 
