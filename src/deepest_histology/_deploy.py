@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 from fastai.vision.all import Learner
 
@@ -29,7 +30,7 @@ def deploy(learn: Learner, run) -> Optional[pd.DataFrame]:
 
     # class-wise scores
     for class_, i in learn.dls.vocab.o2i.items():
-        test_df[f'{target_label}_{class_}'] = scores[:, i]
+        test_df[f'{target_label}_{class_}'] = np.array(scores[:, i])
 
     # class prediction (i.e. the class w/ the highest score for each tile)
     test_df[f'{target_label}_pred'] = learn.dls.vocab.map_ids(class_preds)
