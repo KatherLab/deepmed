@@ -293,28 +293,52 @@ def count(target_label: str, preds_df: pd.DataFrame, _result_dir) -> pd.DataFram
 
 def top_tiles(
         target_label: str, preds_df: pd.DataFrame, result_dir: Path,
-        n_patients: int = 4, n_tiles: int = 4, patient_label: str = 'PATIENT') -> None:
+        n_patients: int = 4, n_tiles: int = 4, patient_label: str = 'PATIENT',
+        best_patients: bool = True, best_tiles: Optional[bool] = None) -> None:
     """Generates a grid of the best scoring tiles for each class.
 
     The function outputs a `n_patients` × `n_tiles` grid of tiles, where each
     row contains the `n_tiles` highest scoring tiles for one of the `n_patients`
     best-classified patients.
     """
+    # set `best_tiles` to `best_patients` if undefined
+    best_tiles = best_tiles if best_tiles is not None else best_patients
+
     for class_ in preds_df[f'{target_label}_pred'].unique():
         plt.figure(figsize=(n_patients, n_tiles), dpi=600)
         # get patients with the best overall ratings for the label
-        patients = (preds_df.groupby(patient_label)[target_label]
-                            .agg(lambda x: sum(x == class_) / len(x)).nlargest(n_patients))
+        class_instance_df = preds_df[preds_df[target_label] == class_]
+        patient_scores = \
+            class_instance_df.groupby(patient_label)[f'{target_label}_pred'].agg(lambda x: sum(x == class_) / len(x))
+
+        patients = (patient_scores.nlargest(n_patients) if best_patients
+                    else patient_scores.nsmallest(n_patients))
+
         for i, patient in enumerate(patients.keys()):
             # get the best tile for that patient
-            tiles = (preds_df[preds_df[patient_label] == patient]
-                        .nlargest(n=n_tiles, columns=f'{target_label}_{class_}').tile_path)
+            patient_tiles = preds_df[preds_df[patient_label] == patient]
+
+            tiles = (patient_tiles.nlargest(n=n_tiles, columns=f'{target_label}_{class_}').tile_path
+                     if best_tiles
+                     else patient_tiles.nsmallest(n=n_tiles, columns=f'{target_label}_{class_}').tile_path)
+
             for j, tile in enumerate(tiles):
                 plt.subplot(n_patients, n_tiles, i*n_tiles + j+1)
                 plt.axis('off')
                 plt.imshow(Image.open(tile))
-        plt.savefig(result_dir/f'{target_label}_{class_}_top_tiles.svg', bbox_inches='tight')
+
+        outfile = result_dir/_generate_tiles_fn(target_label, class_, best_patients, best_tiles, n_patients, n_tiles)
+        plt.savefig(outfile, bbox_inches='tight')
         plt.close()
+
+
+def _generate_tiles_fn(
+        target_label: str, class_: str, best_patients: bool, best_tiles: bool,
+        n_patients: int, n_tiles: int) -> str:
+    patient_str = f'{"best" if best_patients else "worst"}-{n_patients}-patients'
+    tile_str = f'{"best" if best_tiles else "worst"}-{n_tiles}-tiles'
+
+    return f'{target_label}_{class_}_{patient_str}_{tile_str}.svg'
 
 
 import numpy as np
