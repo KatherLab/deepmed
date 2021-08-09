@@ -2,7 +2,7 @@ import logging
 import coloredlogs
 
 coloredlogs.install(
-    fmt='%(asctime)s,%(msecs)03d %(name)s %(levelname)s %(message)s', level=logging.DEBUG)
+    fmt='%(asctime)s,%(msecs)03d %(name)s %(levelname)s %(message)s', level=logging.INFO)
 
 from pathlib import Path
 from functools import partial

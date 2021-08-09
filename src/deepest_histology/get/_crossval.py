@@ -51,7 +51,8 @@ def crossval(
         n_bins:  The number of bins to discretize continuous values into.
         na_values:  The class labels to consider as N/A values.
         min_support:  The minimum amount of class samples required for the class
-            to be included in training.  Classes with less support are dropped.
+            per fold to be included in training.  Classes with less support are
+            dropped.
         *args:  Arguments to pass to ``get``.
         *kwargs:  Keyword arguments to pass to ``get``.
 
@@ -65,7 +66,7 @@ def crossval(
     logger = logging.getLogger(str(project_dir))
 
     cohorts_df = _prepare_cohorts(
-        cohorts_df, target_label, na_values, n_bins, min_support, logger=logger)
+        cohorts_df, target_label, na_values, n_bins, min_support*folds//(folds-1), logger=logger)
 
     if cohorts_df[target_label].nunique() < 2:
         logger.warning(f'Not enough classes for target {target_label}! skipping...')

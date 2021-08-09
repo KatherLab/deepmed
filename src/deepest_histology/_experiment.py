@@ -70,8 +70,9 @@ def do_experiment(
         #  2. We can spawn more processes in the launched subprocesses (not possible with Pool)
         with ThreadPool(num_concurrent_runs or 1) as pool:
             # only use pool if we actually want to run multiple runs in parallel
-            runs = (pool.imap(_do_run_wrapper, run_args, chunksize=1) if num_concurrent_runs >= 1
-                    else (_do_run_wrapper(args, spawn_process=False) for args in run_args))
+            runs = (pool.imap_unordered(_do_run_wrapper, run_args, chunksize=1)
+                    if num_concurrent_runs >= 1
+                    else (_do_run_wrapper(args, spawn_process=False) for args in run_args)) # type: ignore
             for _ in runs:
                 pass
 
@@ -93,12 +94,12 @@ def _raise_df_column_level(df, level):
 def _generate_preds_df(result_dir: Path) -> pd.DataFrame:
     # load predictions
     if (preds_path := result_dir/'predictions.csv.zip').exists():
-        preds_df = pd.read_csv(preds_path)
+        preds_df = pd.read_csv(preds_path, low_memory=False)
     else:
         # create an accumulated predictions df if there isn't one already
         dfs = []
         for df_path in result_dir.glob('**/predictions.csv.zip'):
-            df = pd.read_csv(df_path)
+            df = pd.read_csv(df_path, low_memory=False)
             # column which tells us which subset these predictions are from
             df[f'subset_{result_dir.name}'] = df_path.name
             dfs.append(df)
@@ -129,6 +130,9 @@ def _do_run(
                 preds_df = deploy(learn, run) if learn else None
 
                 break
+        except Exception as e:
+            logger.exception(e)
+            raise e
         finally: capacity.release()
     else:
         raise RuntimeError('Could not find a free GPU!')
@@ -155,7 +159,7 @@ def _evaluate(run: Run, preds_df: pd.DataFrame):
 
 
 
-def _do_run_wrapper(kwargs, spawn_process: bool = True) -> Optional[Run]:
+def _do_run_wrapper(kwargs, spawn_process: bool = True) -> None:
     """Starts a new process to train a model."""
     run = kwargs['run']
     try:

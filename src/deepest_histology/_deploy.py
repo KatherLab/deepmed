@@ -3,7 +3,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-from fastai.vision.all import Learner
+from fastai.vision.all import Learner, CategoryMap
 
 from .utils import log_defaults
 
@@ -29,11 +29,14 @@ def deploy(learn: Learner, run) -> Optional[pd.DataFrame]:
     scores, _, class_preds = learn.get_preds(dl=test_dl, inner=True, with_decoded=True)
 
     # class-wise scores
-    for class_, i in learn.dls.vocab.o2i.items():
-        test_df[f'{target_label}_{class_}'] = np.array(scores[:, i])
+    vocab = learn.dls.vocab
+    if not isinstance(vocab, CategoryMap):
+        vocab = vocab[-1]
+    for class_, i in vocab.o2i.items():
+        test_df[f'{target_label}_{class_}'] = scores[:, i]
 
     # class prediction (i.e. the class w/ the highest score for each tile)
-    test_df[f'{target_label}_pred'] = learn.dls.vocab.map_ids(class_preds)
+    test_df[f'{target_label}_pred'] = vocab.map_ids(class_preds)
 
     test_df.to_csv(preds_path, index=False, compression='zip')
 

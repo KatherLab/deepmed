@@ -98,7 +98,8 @@ def simple_run(
 
     if (train_df_path := project_dir/'training_set.csv.zip').exists():
         logger.warning(f'{train_df_path} already exists, using old training set!')
-        train_df = pd.read_csv(train_df_path)
+        train_df = pd.read_csv(train_df_path, dtype=str)
+        train_df.is_valid = train_df.is_valid == 'True'
     elif train_cohorts_df is not None:
         train_cohorts_df = _prepare_cohorts(
             train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
@@ -107,7 +108,7 @@ def simple_run(
             logger.warning(f'Not enough classes for target {target_label}! skipping...')
             return
 
-        logger.debug(f'Slide target counts: {dict(train_cohorts_df[target_label].value_counts())}')
+        logger.info(f'Training slide counts: {dict(train_cohorts_df[target_label].value_counts())}')
 
         # split off validation set
         patients = train_cohorts_df.groupby(patient_label)[target_label].first()
@@ -143,15 +144,15 @@ def simple_run(
     if (test_df_path := project_dir/'testing_set.csv.zip').exists():
         # load old testing set if it exists
         logger.warning(f'{test_df_path} already exists, using old testing set!')
-        test_df = pd.read_csv(test_df_path)
+        test_df = pd.read_csv(test_df_path, dtype=str)
     elif test_cohorts_df is not None:
         logger.info(f'Searching for testing tiles')
         test_cohorts_df = _prepare_cohorts(
             test_cohorts_df, target_label, na_values, n_bins, min_support, logger)
+        logger.info(f'Testing slide counts: {dict(test_cohorts_df[target_label].value_counts())}')
         test_df = _get_tiles(
             cohorts_df=test_cohorts_df, max_tile_num=max_tile_num, seed=seed, logger=logger)
-        logger.info(f'{len(test_cohorts_df)} testing tiles: '
-                    f'{dict(test_cohorts_df[target_label].value_counts())}')
+        logger.info(f'Testing tiles: {dict(test_df[target_label].value_counts())}')
 
         train_df_path.parent.mkdir(parents=True, exist_ok=True)
         test_df.to_csv(test_df_path, index=False, compression='zip')

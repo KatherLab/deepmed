@@ -6,7 +6,7 @@ from threading import Event
 
 import pandas as pd
 from fastai.vision.all import Learner
-from multiprocessing.managers import SyncManager
+from multiprocessing.managers import BaseManager
 
 from .metrics import Evaluator
 
@@ -46,7 +46,7 @@ class Run:
 
 
 class RunGetter(Protocol):
-    def __call__(self, project_dir: Path, manager: SyncManager) -> Iterator[Run]:
+    def __call__(self, project_dir: Path, manager: BaseManager) -> Iterator[Run]:
         """A function which creates a series of runs.
 
         Args:

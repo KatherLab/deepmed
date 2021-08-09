@@ -1,5 +1,6 @@
 from . import get
 from . import metrics
+from . import multi_input
 from ._experiment import *
 from ._train import *
 from ._load import *
