@@ -224,7 +224,7 @@ def _get_tiles(
                  for file in tile_dir.iterdir()]
         tiles = random.sample(tiles, min(len(tiles), max_tile_num))
         tiles_df = pd.DataFrame(tiles, columns=['tiles_path', 'tile_path'])
-        
+
         tiles_dfs.append(data.merge(tiles_df, on='tiles_path').drop(columns='tiles_path'))
 
     tiles_df = pd.concat(tiles_dfs).reset_index(drop=True)
