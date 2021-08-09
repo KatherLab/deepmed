@@ -2,7 +2,7 @@ from multiprocessing.managers import SyncManager
 from pathlib import Path
 from typing import Iterable, Iterator
 from typing_extensions import Protocol
-from ..types import Run
+from ..types import Run, EvalRun
 from ..metrics import Evaluator
 
 
@@ -50,7 +50,7 @@ def multi_target(
             eval_reqirements.append(run.done)
             yield run
 
-    yield Run(
+    yield EvalRun(
         directory=project_dir,
         target=target_label,
         requirements=eval_reqirements,

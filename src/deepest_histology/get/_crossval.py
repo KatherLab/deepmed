@@ -7,7 +7,7 @@ from typing_extensions import Protocol
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 
-from .._experiment import Run
+from .._experiment import Run, EvalRun
 from ._simple import _prepare_cohorts
 from ..utils import log_defaults
 from ..metrics import Evaluator
@@ -91,13 +91,9 @@ def crossval(
             **kwargs)
     ]
     for run in fold_runs:
-        assert (
-            run.train_df is None or run.test_df is None
-            or not (set(run.train_df[patient_label]) & set(run.test_df[patient_label]))), \
-            "Patient intersection between training and testing set!"
         yield run
 
-    yield Run(
+    yield EvalRun(
         directory=project_dir,
         target=target_label,
         requirements=[run.done for run in fold_runs if run.done is not None],

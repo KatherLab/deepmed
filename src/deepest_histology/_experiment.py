@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 import logging
-from typing import Iterable, Optional, Callable, Sequence, Tuple, Iterator
+from typing import Iterable
 from pathlib import Path
 from multiprocessing import Manager, Process
 from multiprocessing.pool import ThreadPool
 from multiprocessing.synchronize import Semaphore
-from functools import partial, lru_cache
+from functools import lru_cache, singledispatch
 
 import pandas as pd
 import torch
@@ -14,7 +14,6 @@ import torch
 from ._train import train
 from ._deploy import deploy
 from .utils import Lazy
-from .metrics import Evaluator
 from .types import *
 
 
@@ -77,88 +76,6 @@ def do_experiment(
                 pass
 
 
-def _raise_df_column_level(df, level):
-    if df.columns.empty:
-        columns = pd.MultiIndex.from_product([[]] * level)
-    elif isinstance(df.columns, pd.MultiIndex):
-        columns = pd.MultiIndex.from_tuples([col + (None,)*(level-df.columns.nlevels)
-                                             for col in df.columns])
-    else:
-        columns = pd.MultiIndex.from_tuples([(col,) + (None,)*(level-df.columns.nlevels)
-                                             for col in df.columns])
-
-    return pd.DataFrame(df.values, index=df.index, columns=columns)
-
-
-@lru_cache(maxsize=4)
-def _generate_preds_df(result_dir: Path) -> pd.DataFrame:
-    # load predictions
-    if (preds_path := result_dir/'predictions.csv.zip').exists():
-        preds_df = pd.read_csv(preds_path, low_memory=False)
-    else:
-        # create an accumulated predictions df if there isn't one already
-        dfs = []
-        for df_path in result_dir.glob('**/predictions.csv.zip'):
-            df = pd.read_csv(df_path, low_memory=False)
-            # column which tells us which subset these predictions are from
-            df[f'subset_{result_dir.name}'] = df_path.name
-            dfs.append(df)
-
-        preds_df = pd.concat(dfs)
-        preds_df.to_csv(preds_path, index=False, compression='zip')
-
-    return preds_df
-
-
-def _do_run(
-        run: Run, train: Trainer, deploy: Deployer, devices: Iterable,
-        capacities: Iterable[Semaphore] = []) \
-        -> None:
-    logger = logging.getLogger(str(run.directory))
-
-    for reqirement in run.requirements:
-        reqirement.wait()
-
-    logger.info(f'Starting run')
-
-    for device, capacity in zip(devices, capacities):
-        # search for a free gpu
-        if not capacity.acquire(blocking=False): continue   # type: ignore
-        try:
-            with torch.cuda.device(device):
-                learn = train(run)
-                preds_df = deploy(learn, run) if learn else None
-
-                break
-        except Exception as e:
-            logger.exception(e)
-            raise e
-        finally: capacity.release()
-    else:
-        raise RuntimeError('Could not find a free GPU!')
-
-    logger.info('Evaluating')
-    _evaluate(run=run, preds_df=preds_df)
-
-
-def _evaluate(run: Run, preds_df: pd.DataFrame):
-    if preds_df is None: preds_df = _generate_preds_df(run.directory)
-    stats_df = None
-    for evaluate in run.evaluators:
-        if (df := evaluate(run.target, preds_df, run.directory)) is not None:
-            if stats_df is None:
-                stats_df = df
-            else:
-                # make sure the two dfs have the same column level
-                levels = max(stats_df.columns.nlevels, df.columns.nlevels)
-                stats_df = _raise_df_column_level(stats_df, levels)
-                df = _raise_df_column_level(df, levels)
-                stats_df = stats_df.join(df)
-    if stats_df is not None:
-        stats_df.to_csv(run.directory/'stats.csv')
-
-
-
 def _do_run_wrapper(kwargs, spawn_process: bool = True) -> None:
     """Starts a new process to train a model."""
     run = kwargs['run']
@@ -166,10 +83,10 @@ def _do_run_wrapper(kwargs, spawn_process: bool = True) -> None:
         # Starting a new process guarantees that the allocaded CUDA resources will
         # be released upon completion of training.
         if spawn_process:
-            p = Process(target=_do_run, kwargs=kwargs)
+            p = Process(target=run.__call__, kwargs=kwargs)
             p.start()
             p.join()
         else:
-            _do_run(**kwargs)
+            run(**kwargs)
     finally:
         run.done.set()

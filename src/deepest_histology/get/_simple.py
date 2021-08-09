@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from ..metrics import Evaluator
 from ..utils import log_defaults
-from .._experiment import Run
+from .._experiment import Run, GPURun, EvalRun
 
 
 logger = logging.getLogger(__name__)
@@ -96,76 +96,97 @@ def simple_run(
     """
     logger = logging.getLogger(str(project_dir))
 
-    if (train_df_path := project_dir/'training_set.csv.zip').exists():
-        logger.warning(f'{train_df_path} already exists, using old training set!')
-        train_df = pd.read_csv(train_df_path, dtype=str)
-        train_df.is_valid = train_df.is_valid == 'True'
-    elif train_cohorts_df is not None:
-        train_cohorts_df = _prepare_cohorts(
-            train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
-
-        if train_cohorts_df[target_label].nunique() < 2:
-            logger.warning(f'Not enough classes for target {target_label}! skipping...')
-            return
-
-        logger.info(f'Training slide counts: {dict(train_cohorts_df[target_label].value_counts())}')
-
-        # split off validation set
-        patients = train_cohorts_df.groupby(patient_label)[target_label].first()
-        _, valid_patients = train_test_split(
-            patients.index, test_size=valid_frac, stratify=patients)
-        train_cohorts_df['is_valid'] = train_cohorts_df[patient_label].isin(valid_patients)
-
-        logger.info(f'Searching for training tiles')
-        tiles_df = _get_tiles(
-            cohorts_df=train_cohorts_df, max_tile_num=max_tile_num, seed=seed, logger=logger)
-
-        logger.debug(
-            f'Training tiles: {dict(tiles_df[~tiles_df.is_valid][target_label].value_counts())}')
-        logger.debug(
-            f'Validation tiles: {dict(tiles_df[tiles_df.is_valid][target_label].value_counts())}')
-
-        if balance:
-            train_cohorts_df = _balance_classes(
-                tiles_df=tiles_df[~tiles_df.is_valid], target=target_label)
-            valid_df = _balance_classes(tiles_df=tiles_df[tiles_df.is_valid], target=target_label)
-            logger.info(f'Training tiles after balancing: {len(train_cohorts_df)}')
-            logger.info(f'Validation tiles after balancing: {len(valid_df)}')
-            train_df = pd.concat([train_cohorts_df, valid_df])
+    eval_reqs = []
+    if (preds_df_path := project_dir/'predictions.csv.zip').exists():
+        logger.warning(f'{preds_df_path} already exists, skipping training/deployment!')
+    else:
+        # training set
+        if (train_df_path := project_dir/'training_set.csv.zip').exists():
+            logger.warning(f'{train_df_path} already exists, using old training set!')
+            train_df = pd.read_csv(train_df_path, dtype=str)
+            train_df.is_valid = train_df.is_valid == 'True'
+        elif train_cohorts_df is not None:
+            train_df = _generate_train_df(
+                train_cohorts_df, target_label, na_values, n_bins, min_support, logger, patient_label,
+                valid_frac, max_tile_num, seed, train_df_path)
         else:
-            train_df = tiles_df
+            train_df = None
 
-        train_df_path.parent.mkdir(parents=True, exist_ok=True)
-        train_df.to_csv(train_df_path, index=False, compression='zip')
-    else:
-        train_df = None
+        # testing set
+        if (test_df_path := project_dir/'testing_set.csv.zip').exists():
+            # load old testing set if it exists
+            logger.warning(f'{test_df_path} already exists, using old testing set!')
+            test_df = pd.read_csv(test_df_path, dtype=str)
+        elif test_cohorts_df is not None:
+            logger.info(f'Searching for testing tiles')
+            test_cohorts_df = _prepare_cohorts(
+                test_cohorts_df, target_label, na_values, n_bins, min_support, logger)
+            logger.info(f'Testing slide counts: {dict(test_cohorts_df[target_label].value_counts())}')
+            test_df = _get_tiles(
+                cohorts_df=test_cohorts_df, max_tile_num=max_tile_num, seed=seed, logger=logger)
+            logger.info(f'Testing tiles: {dict(test_df[target_label].value_counts())}')
 
-    # test set
-    if (test_df_path := project_dir/'testing_set.csv.zip').exists():
-        # load old testing set if it exists
-        logger.warning(f'{test_df_path} already exists, using old testing set!')
-        test_df = pd.read_csv(test_df_path, dtype=str)
-    elif test_cohorts_df is not None:
-        logger.info(f'Searching for testing tiles')
-        test_cohorts_df = _prepare_cohorts(
-            test_cohorts_df, target_label, na_values, n_bins, min_support, logger)
-        logger.info(f'Testing slide counts: {dict(test_cohorts_df[target_label].value_counts())}')
-        test_df = _get_tiles(
-            cohorts_df=test_cohorts_df, max_tile_num=max_tile_num, seed=seed, logger=logger)
-        logger.info(f'Testing tiles: {dict(test_df[target_label].value_counts())}')
+            train_df_path.parent.mkdir(parents=True, exist_ok=True)
+            test_df.to_csv(test_df_path, index=False, compression='zip')
+        else:
+            test_df = None
 
-        train_df_path.parent.mkdir(parents=True, exist_ok=True)
-        test_df.to_csv(test_df_path, index=False, compression='zip')
-    else:
-        test_df = None
+        gpu_done = manager.Event()
+        eval_reqs.append(gpu_done)
+        yield GPURun(
+            directory=project_dir,
+            target=target_label,
+            train_df=train_df,
+            test_df=test_df,
+            done=gpu_done)
 
-    yield Run(
+    yield EvalRun(
         directory=project_dir,
         target=target_label,
-        train_df=train_df,
-        test_df=test_df,
-        evaluators=evaluators,
-        done=manager.Event())
+        done=manager.Event(),
+        requirements=eval_reqs,
+        evaluators=evaluators)
+
+
+def _generate_train_df(
+        train_cohorts_df, target_label, na_values, n_bins, min_support, logger, patient_label,
+        valid_frac, max_tile_num, seed, train_df_path):
+    train_cohorts_df = _prepare_cohorts(
+        train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
+
+    if train_cohorts_df[target_label].nunique() < 2:
+        logger.warning(f'Not enough classes for target {target_label}! skipping...')
+        return
+
+    logger.info(f'Training slide counts: {dict(train_cohorts_df[target_label].value_counts())}')
+
+    # split off validation set
+    patients = train_cohorts_df.groupby(patient_label)[target_label].first()
+    _, valid_patients = train_test_split(
+        patients.index, test_size=valid_frac, stratify=patients)
+    train_cohorts_df['is_valid'] = train_cohorts_df[patient_label].isin(valid_patients)
+
+    logger.info(f'Searching for training tiles')
+    tiles_df = _get_tiles(
+        cohorts_df=train_cohorts_df, max_tile_num=max_tile_num, seed=seed, logger=logger)
+
+    logger.debug(
+        f'Training tiles: {dict(tiles_df[~tiles_df.is_valid][target_label].value_counts())}')
+    logger.debug(
+        f'Validation tiles: {dict(tiles_df[tiles_df.is_valid][target_label].value_counts())}')
+
+    if balance:
+        train_cohorts_df = _balance_classes(
+            tiles_df=tiles_df[~tiles_df.is_valid], target=target_label)
+        valid_df = _balance_classes(tiles_df=tiles_df[tiles_df.is_valid], target=target_label)
+        logger.info(f'Training tiles after balancing: {len(train_cohorts_df)}')
+        logger.info(f'Validation tiles after balancing: {len(valid_df)}')
+        train_df = pd.concat([train_cohorts_df, valid_df])
+    else:
+        train_df = tiles_df
+
+    train_df_path.parent.mkdir(parents=True, exist_ok=True)
+    train_df.to_csv(train_df_path, index=False, compression='zip')
 
 
 def _prepare_cohorts(
