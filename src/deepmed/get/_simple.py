@@ -1,7 +1,7 @@
 from multiprocessing.managers import SyncManager
 import random
 import logging
-from typing import Iterable, Sequence, Iterator, Optional, Any, Union
+from typing import Iterable, Sequence, Iterator, Optional, Any, Union, Mapping
 from pathlib import Path
 from numbers import Number
 
@@ -10,6 +10,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn import preprocessing
 from tqdm import tqdm
+import numpy as np
 
 from ..metrics import Evaluator
 from ..utils import log_defaults
@@ -74,8 +75,9 @@ def simple_run(
         valid_frac: float = .2,
         n_bins: int = 2,
         na_values: Iterable[Any] = [],
-        min_support: int = 0,
+        min_support: int = 10,
         evaluators: Iterable[Evaluator] = [],
+        max_class_count: Optional[Mapping[str, int]] = None,
         ) -> Iterator[Run]:
     """Creates runs for a basic test-deploy procedure.
 
@@ -130,7 +132,7 @@ def simple_run(
         elif train_cohorts_df is not None:
             train_df = _generate_train_df(
                 train_cohorts_df, target_label, na_values, n_bins, min_support, logger, patient_label,
-                valid_frac, max_tile_num, seed, train_df_path, balance)
+                valid_frac, max_tile_num, seed, train_df_path, balance, max_class_count)
         else:
             train_df = None
 
@@ -173,7 +175,7 @@ def simple_run(
 
 def _generate_train_df(
         train_cohorts_df, target_label, na_values, n_bins, min_support, logger, patient_label,
-        valid_frac, max_tile_num, seed, train_df_path, balance):
+        valid_frac, max_tile_num, seed, train_df_path, balance, max_class_count):
     train_cohorts_df = _prepare_cohorts(
         train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
 
@@ -182,6 +184,16 @@ def _generate_train_df(
         return
 
     logger.info(f'Training slide counts: {dict(train_cohorts_df[target_label].value_counts())}')
+
+    # only use a subset of patients
+    # (can be useful to compare behavior when training on different cohorts)
+    if max_class_count is not None:
+        patients_to_use = []
+        for class_, count in max_class_count.items():
+            class_patients = \
+                train_cohorts_df[train_cohorts_df[target_label] == class_][patient_label].unique()
+            patients_to_use.append(np.random.choice(class_patients, size=count, replace=False))
+        train_cohorts_df = train_cohorts_df[train_cohorts_df[patient_label].isin(np.concatenate(patients_to_use))]
 
     # split off validation set
     patients = train_cohorts_df.groupby(patient_label)[target_label].first()
@@ -222,6 +234,8 @@ def _prepare_cohorts(
     Discretizes continuous targets and drops classes for which only few examples
     are present.
     """
+    cohorts_df[target_label] = cohorts_df[target_label].str.strip()
+
     # remove N/As
     cohorts_df = cohorts_df[cohorts_df[target_label].notna()]
     for na_value in na_values:
