@@ -1,19 +1,13 @@
 #!/usr/bin/env python3
 
 import logging
-from typing import Iterable
+from typing import Mapping, Union
 from pathlib import Path
 from multiprocessing import Manager, Process
 from multiprocessing.pool import ThreadPool
-from multiprocessing.synchronize import Semaphore
-from functools import lru_cache, singledispatch
-
-import pandas as pd
-import torch
 
 from ._train import train
 from ._deploy import deploy
-from .utils import Lazy
 from .types import *
 
 
@@ -28,8 +22,8 @@ def do_experiment(
         get: RunGetter,
         train: Trainer = train,
         deploy: Deployer = deploy,
-        num_concurrent_runs: int = 4,
-        devices = [torch.cuda.current_device()],
+        num_concurrent_runs: int = 8,
+        devices: Mapping[Union[str, int], int] = {0: 0},
         ) -> None:
     """Runs an experiement.
 
@@ -40,7 +34,7 @@ def do_experiment(
         deploy:  A function deploying a trained model.
         num_concurrent_runs:  The maximum amount of runs to do at the same time.
             Useful for multi-GPU systems.
-        devices:  The devices to use for training.
+        devices:  The devices to use for training and the capacities for each device.
     """
     project_dir = Path(project_dir)
     project_dir.mkdir(exist_ok=True, parents=True)
@@ -56,12 +50,10 @@ def do_experiment(
 
     with Manager() as manager:
         # semaphores which tell us which GPUs still have resources free
-        # each gpu is a assumed to have the same capabilities
-        capacities = [
-            manager.Semaphore(max(1, (num_concurrent_runs+len(devices)-1)//len(devices)))  # type: ignore
-            for _ in devices]
-        run_args = ({'run': run, 'train': train, 'deploy': deploy, 'devices': devices,
-                     'capacities': capacities}
+        capacities = {
+            device: manager.Semaphore(max(1, (num_concurrent_runs+len(devices)-1)//(2*len(devices))))
+            for device in devices}
+        run_args = ({'run': run, 'train': train, 'deploy': deploy, 'devices': capacities}
                      for run in get(project_dir=project_dir, manager=manager))
 
         # We use a ThreadPool which starts processes so our launched processes are:

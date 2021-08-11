@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 import logging
+from itertools import cycle
 
-from typing import Optional, Callable, Iterator, Union
+from typing import Optional, Callable, Iterator, Union, Mapping
 from typing_extensions import Protocol
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -99,14 +100,13 @@ class GPURun(Run):
     """
 
     def __call__(   # type: ignore
-            self, train: Trainer, deploy: Deployer, devices: Iterable,
-            capacities: Iterable[Semaphore] = []) \
-            -> None:
+            self, train: Trainer, deploy: Deployer, devices: Mapping[Union[int, str], Semaphore]
+            ) -> None:
         super().__call__()
         logger = logging.getLogger(str(self.directory))
         logger.info(f'Starting GPU run')
 
-        for device, capacity in zip(devices, capacities):
+        for device, capacity in cycle(devices.items()):
             # search for a free gpu
             if not capacity.acquire(blocking=False): continue   # type: ignore
             try:
@@ -119,8 +119,6 @@ class GPURun(Run):
                 logger.exception(e)
                 raise e
             finally: capacity.release()
-        else:
-            raise RuntimeError('Could not find a free GPU!')
 
 
 @dataclass
