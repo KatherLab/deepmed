@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import logging
 
 from typing import Optional, Callable, Iterator, Union
@@ -24,7 +25,7 @@ __all__ = [
 
 
 @dataclass
-class Run:
+class Run(ABC):
     directory: Path
     """The directory to save data in for this run."""
     target: str
@@ -48,7 +49,7 @@ class RunGetter(Protocol):
         Returns:
             An iterator over all runs.
         """
-        ...
+        raise NotImplementedError()
 
 
 Trainer = Callable[[Run], Optional[Learner]]
@@ -97,11 +98,10 @@ class GPURun(Run):
     - tile_path: Path
     """
 
-    def __call__(
+    def __call__(   # type: ignore
             self, train: Trainer, deploy: Deployer, devices: Iterable,
-            capacities: Iterable[Semaphore] = [], **_) \
+            capacities: Iterable[Semaphore] = []) \
             -> None:
-
         super().__call__()
         logger = logging.getLogger(str(self.directory))
         logger.info(f'Starting GPU run')
@@ -127,7 +127,7 @@ class GPURun(Run):
 class EvalRun(Run):
     evaluators: Iterable[Evaluator] = field(default_factory=list)
 
-    def __call__(self, **_) -> None:
+    def __call__(self) -> None:
         super().__call__()
         logger = logging.getLogger(str(self.directory))
         logger.info('Evaluating')

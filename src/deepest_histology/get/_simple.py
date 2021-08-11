@@ -104,7 +104,7 @@ def simple_run(
             directory=project_dir,
             target=target_label,
             done=manager.Event(),
-            requirements=eval_reqs,
+            requirements=[],
             evaluators=evaluators)
     else:
         # training set

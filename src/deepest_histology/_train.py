@@ -15,20 +15,20 @@ from fastai.vision.all import (
     aug_transforms, load_learner)
 
 from .utils import log_defaults
-from .types import Run
+from .types import GPURun
 
 __all__ = ['train']
 
 
 @log_defaults
 def train(
-        run: Run, /,
+        run: GPURun, /,
         arch: Callable[[bool], nn.Module] = resnet18,
         batch_size: int = 64,
         max_epochs: int = 10,
         lr: float = 2e-3,
         num_workers: int = 0,
-        tfms: Callable = aug_transforms(
+        tfms: Optional[Callable] = aug_transforms(
             flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224),
         metrics: Iterable[Callable] = [BalancedAccuracy()],
         patience: int = 3,

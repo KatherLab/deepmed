@@ -24,7 +24,7 @@ from fastai.vision.all import (
 from fastai.vision.learner import _add_norm, _default_meta
 
 from .utils import log_defaults
-from .types import Run
+from .types import GPURun
 
 __all__ = ['train']
 
@@ -128,7 +128,7 @@ class Category:
 
 @log_defaults
 def train(
-        run: Run, /,
+        run: GPURun, /,
         arch: Callable[[bool], nn.Module] = resnet18,
         batch_size: int = 64,
         max_epochs: int = 10,
