@@ -104,7 +104,7 @@ class GPURun(Run):
 
         super().__call__()
         logger = logging.getLogger(str(self.directory))
-        logger.info(f'Starting run')
+        logger.info(f'Starting GPU run')
 
         for device, capacity in zip(devices, capacities):
             # search for a free gpu

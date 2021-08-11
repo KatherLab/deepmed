@@ -99,6 +99,13 @@ def simple_run(
     eval_reqs = []
     if (preds_df_path := project_dir/'predictions.csv.zip').exists():
         logger.warning(f'{preds_df_path} already exists, skipping training/deployment!')
+
+        yield EvalRun(
+            directory=project_dir,
+            target=target_label,
+            done=manager.Event(),
+            requirements=eval_reqs,
+            evaluators=evaluators)
     else:
         # training set
         if (train_df_path := project_dir/'training_set.csv.zip').exists():
@@ -108,7 +115,7 @@ def simple_run(
         elif train_cohorts_df is not None:
             train_df = _generate_train_df(
                 train_cohorts_df, target_label, na_values, n_bins, min_support, logger, patient_label,
-                valid_frac, max_tile_num, seed, train_df_path)
+                valid_frac, max_tile_num, seed, train_df_path, balance)
         else:
             train_df = None
 
@@ -140,17 +147,18 @@ def simple_run(
             test_df=test_df,
             done=gpu_done)
 
-    yield EvalRun(
-        directory=project_dir,
-        target=target_label,
-        done=manager.Event(),
-        requirements=eval_reqs,
-        evaluators=evaluators)
+        if test_df is not None:
+            yield EvalRun(
+                directory=project_dir,
+                target=target_label,
+                done=manager.Event(),
+                requirements=eval_reqs,
+                evaluators=evaluators)
 
 
 def _generate_train_df(
         train_cohorts_df, target_label, na_values, n_bins, min_support, logger, patient_label,
-        valid_frac, max_tile_num, seed, train_df_path):
+        valid_frac, max_tile_num, seed, train_df_path, balance):
     train_cohorts_df = _prepare_cohorts(
         train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
 
@@ -187,6 +195,8 @@ def _generate_train_df(
 
     train_df_path.parent.mkdir(parents=True, exist_ok=True)
     train_df.to_csv(train_df_path, index=False, compression='zip')
+
+    return train_df 
 
 
 def _prepare_cohorts(
