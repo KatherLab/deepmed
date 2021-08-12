@@ -71,6 +71,7 @@ def do_experiment(
 def _do_run_wrapper(kwargs, spawn_process: bool = True) -> None:
     """Starts a new process to train a model."""
     run = kwargs['run']
+    del kwargs['run']
     try:
         # Starting a new process guarantees that the allocaded CUDA resources will
         # be released upon completion of training.
