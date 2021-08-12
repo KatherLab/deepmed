@@ -100,8 +100,8 @@ class GPURun(Run):
     """
 
     def __call__(   # type: ignore
-            self, train: Trainer, deploy: Deployer, devices: Mapping[Union[int, str], Semaphore]
-            ) -> None:
+            self, train: Trainer, deploy: Deployer, devices: Mapping[Union[int, str], Semaphore],
+            **_) -> None:
         super().__call__()
         logger = logging.getLogger(str(self.directory))
         logger.info(f'Starting GPU run')
@@ -125,7 +125,7 @@ class GPURun(Run):
 class EvalRun(Run):
     evaluators: Iterable[Evaluator] = field(default_factory=list)
 
-    def __call__(self) -> None:
+    def __call__(self, **_) -> None:
         super().__call__()
         logger = logging.getLogger(str(self.directory))
         logger.info('Evaluating')
