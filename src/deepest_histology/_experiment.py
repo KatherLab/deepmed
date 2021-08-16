@@ -22,7 +22,7 @@ def do_experiment(
         get: RunGetter,
         train: Trainer = train,
         deploy: Deployer = deploy,
-        num_concurrent_runs: int = 8,
+        num_concurrent_runs: int = 0,
         devices: Mapping[Union[str, int], int] = {0: 4},
         ) -> None:
     """Runs an experiement.
@@ -51,15 +51,11 @@ def do_experiment(
     with Manager() as manager:
         # semaphores which tell us which GPUs still have resources free
         capacities = {
-<<<<<<< Updated upstream
-            device: manager.Semaphore(max(1, (num_concurrent_runs+len(devices)-1)//(2*len(devices))))
-            for device in devices}
-=======
             device: manager.Semaphore(capacity)   # type: ignore
             for device, capacity in devices.items()}
->>>>>>> Stashed changes
         run_args = ({'run': run, 'train': train, 'deploy': deploy, 'devices': capacities}
                      for run in get(project_dir=project_dir, manager=manager))
+        num_concurrent_runs = num_concurrent_runs or sum(devices.values())*3
 
         # We use a ThreadPool which starts processes so our launched processes are:
         #  1. Terminated after each training run so we don't leak resources
