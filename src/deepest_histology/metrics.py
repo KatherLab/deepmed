@@ -305,6 +305,11 @@ def top_tiles(
     best_tiles = best_tiles if best_tiles is not None else best_patients
 
     for class_ in preds_df[f'{target_label}_pred'].unique():
+        outfile = result_dir/_generate_tiles_fn(
+                target_label, class_, best_patients, best_tiles, n_patients, n_tiles)
+        if outfile.exists():
+            continue
+
         plt.figure(figsize=(n_patients, n_tiles), dpi=600)
         # get patients with the best overall ratings for the label
         class_instance_df = preds_df[preds_df[target_label] == class_]
@@ -327,7 +332,6 @@ def top_tiles(
                 plt.axis('off')
                 plt.imshow(Image.open(tile))
 
-        outfile = result_dir/_generate_tiles_fn(target_label, class_, best_patients, best_tiles, n_patients, n_tiles)
         plt.savefig(outfile, bbox_inches='tight')
         plt.close()
 
@@ -412,11 +416,15 @@ def roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path) -> None:
     """Creates a one-vs-all ROC curve plot for each class."""
     y_true = preds_df[target_label]
     for class_ in y_true.unique():
+        outfile = result_dir/f'roc_{target_label}_{class_}.svg'
+        if outfile.exists():
+            continue
+
         fig, ax = plt.subplots()
         if 'fold' in preds_df:
             _plot_roc(preds_df, target_label, class_, ax=ax, conf=.95)
         else:
             _plot_simple_roc(preds_df, target_label, class_, ax=ax, conf=.95)
 
-        fig.savefig(result_dir/f'roc_{target_label}_{class_}.svg')
+        fig.savefig(outfile)
         plt.close()
