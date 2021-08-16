@@ -65,20 +65,25 @@ def crossval(
     """
     logger = logging.getLogger(str(project_dir))
 
-    cohorts_df = _prepare_cohorts(
-        cohorts_df, target_label, na_values, n_bins, min_support*folds//(folds-1), logger=logger)
+    if (folds_path := project_dir/'folds.csv.zip').exists():
+        folded_df = pd.read_csv(folds_path)
+    else:
+        cohorts_df = _prepare_cohorts(
+                cohorts_df, target_label, na_values, n_bins, min_support*folds//(folds-1), logger=logger)
 
-    if cohorts_df[target_label].nunique() < 2:
-        logger.warning(f'Not enough classes for target {target_label}! skipping...')
-        return
+        if cohorts_df[target_label].nunique() < 2:
+            logger.warning(f'Not enough classes for target {target_label}! skipping...')
+            return
 
-    logger.debug(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
+        logger.debug(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
 
-    folded_df = _create_folds(cohorts_df=cohorts_df, target_label=target_label, folds=folds,
-                              seed=seed, patient_label=patient_label)
+        folded_df = _create_folds(
+                cohorts_df=cohorts_df, target_label=target_label, folds=folds, seed=seed,
+                patient_label=patient_label)
+        folded_df.to_csv(folds_path, compression='zip')
 
     # accumulate first to ensure training / testing set data is saved
-    fold_runs = [
+    fold_runs = (
         run
         for fold in sorted(folded_df.fold.unique())
         for run in get( # type: ignore
@@ -89,14 +94,16 @@ def crossval(
             train_cohorts_df=folded_df[folded_df.fold != fold],
             test_cohorts_df=folded_df[folded_df.fold == fold],
             **kwargs)
-    ]
+    )
+    requirements = []
     for run in fold_runs:
         yield run
+        requirements.append(run.done)
 
     yield EvalRun(
         directory=project_dir,
         target=target_label,
-        requirements=[run.done for run in fold_runs if run.done is not None],
+        requirements=requirements,
         evaluators=crossval_evaluators,
         done=manager.Event())
 
