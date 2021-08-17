@@ -1,7 +1,7 @@
-deepest_histology
-=================
+deepmed
+=======
 
 .. toctree::
    :maxdepth: 4
 
-   deepest_histology
+   deepmed

@@ -9,6 +9,6 @@ from fastai.vision.all import *
 from pathlib import Path
 from functools import partial
 import pandas as pd
-from deepest_histology import *
-from deepest_histology.metrics import *
-from deepest_histology.get import cohort
+from deepmed import *
+from deepmed.metrics import *
+from deepmed.get import cohort

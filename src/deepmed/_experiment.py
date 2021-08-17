@@ -33,8 +33,11 @@ def do_experiment(
         train:  A function training a model for a specific run.
         deploy:  A function deploying a trained model.
         num_concurrent_runs:  The maximum amount of runs to do at the same time.
-            Useful for multi-GPU systems.
-        devices:  The devices to use for training and the capacities for each device.
+            If None, the number of runs will grow with the number of available
+            devices.  If 0, all jobs will be run in the main process (useful for
+            debugging).
+        devices:  The devices to use for training and the maximum number of
+            models to be trained at once for each device.
     """
     project_dir = Path(project_dir)
     project_dir.mkdir(exist_ok=True, parents=True)
@@ -49,7 +52,7 @@ def do_experiment(
     logger.info('Getting runs')
 
     with Manager() as manager:
-        # semaphores which tell us which GPUs still have resources free
+        # semaphores which tell us which GPUs still have resources available
         capacities = {
             device: manager.Semaphore(capacity)   # type: ignore
             for device, capacity in devices.items()}

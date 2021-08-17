@@ -33,9 +33,17 @@ class Run(ABC):
     """The name of the target to train or deploy on."""
 
     done: Event
+    """Whether this run has concluded."""
     requirements: Iterable[Event] = field(default_factory=list)
+    """List of events which have to have occurred before this run can be started."""
 
-    def __call__(self) -> None:
+    @abstractmethod
+    def __call__(*_args, **_kwargs):
+        """Start this run."""
+        raise NotImplementedError()
+
+    def wait(self) -> None:
+        """Wait for all requirements to be completed"""
         for reqirement in self.requirements:
             reqirement.wait()
 
@@ -102,7 +110,7 @@ class GPURun(Run):
     def __call__(   # type: ignore
             self, train: Trainer, deploy: Deployer, devices: Mapping[Union[int, str], Semaphore],
             **_) -> None:
-        super().__call__()
+        super().wait()
         logger = logging.getLogger(str(self.directory))
         logger.info(f'Starting GPU run')
 
@@ -126,7 +134,7 @@ class EvalRun(Run):
     evaluators: Iterable[Evaluator] = field(default_factory=list)
 
     def __call__(self, **_) -> None:
-        super().__call__()
+        super().wait()
         logger = logging.getLogger(str(self.directory))
         logger.info('Evaluating')
 

@@ -2,11 +2,10 @@ Multi-Target Training
 =====================
 
 In the last tutorial we trained and deployed a model for a single target.  While
-this in itself is of course interesting, the true power of Deepest Histology
-only comes to light if we want to train a large amount of models at the same
-time.  In this tutorial we will take a look at how to automatically train models
-for a range of different targets and harness the power of multiple GPUs in the
-progress.
+this in itself is of course interesting, the true power of deepmed only comes to
+light if we want to train a large amount of models at the same time.  In this
+tutorial we will take a look at how to automatically train models for a range
+of different targets and harness the power of multiple GPUs in the progress.
 
 
 Defining a Multi-Target Run Getter
@@ -49,8 +48,8 @@ two models in parallel, using both GPUs in our system.  Each of these runs will
 have four of the CPU's cores assigned to it for data preprocessing.  This way,
 we can easily parallelize the training of multiple models and thus decrease the
 overall training time.  On Windows, the ``num_workers`` option is currently
-broken due to a bug in the pytorch module internally used by Deepest Histology.
-On such machines it may be helpful set ``num_workers`` to zero and further
+broken due to a bug in the pytorch module internally used by deepmed.  On such
+machines it may be helpful set ``num_workers`` to zero and further
 increase the number of concurrent runs.
 
 When running this script, we can the directory structure is as follows::

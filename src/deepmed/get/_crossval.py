@@ -34,7 +34,7 @@ def crossval(
         seed: int = 0,
         n_bins: int = 2,
         na_values: Iterable[Any] = [],
-        min_support: int = 10,
+        min_support: int = 0,
         patient_label: str = 'PATIENT',
         crossval_evaluators: Iterable[Evaluator] = [],
         *args, **kwargs) \

@@ -17,14 +17,14 @@ sys.path.insert(0, os.path.abspath('../../src'))
 
 # -- Project information -----------------------------------------------------
 
-import deepest_histology
+import deepmed
 
-project = 'Deepest Histology'
-copyright = deepest_histology.__copyright__
-author = deepest_histology.__author__
+project = 'deepmed'
+copyright = deepmed.__copyright__
+author = deepmed.__author__
 
 # The full version, including alpha/beta/rc tags
-release = deepest_histology.__version__
+release = deepmed.__version__
 
 
 # -- General configuration ---------------------------------------------------

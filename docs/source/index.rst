@@ -11,7 +11,7 @@ Welcome to Deepest Histology's documentation!
    :caption: Contents:
 
    users_guide
-   deepest_histology
+   deepmed
 
 
 Indices and tables

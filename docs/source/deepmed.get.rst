@@ -1,10 +1,10 @@
-deepest\_histology.get package
+deepmed.get package
 ==============================
 
 Module contents
 ---------------
 
-.. automodule:: deepest_histology.get
+.. automodule:: deepmed.get
    :members:
    :undoc-members:
    :show-inheritance:

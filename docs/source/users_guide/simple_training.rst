@@ -10,7 +10,7 @@ Experiment Imports
 To do anything, we first have to import all the necessary functionality.  This
 is easily done by writing::
 
-    from deepest_histology.experiment_imports import *
+    from deepmed.experiment_imports import *
 
 at the top of our file.
 
@@ -18,8 +18,8 @@ at the top of our file.
 Defining the Cohorts
 --------------------
 
-In the Deepest Histology pipeline, both training and deployment is performed on
-*cohorts* of patients.
+In the deepmed pipeline, both training and deployment is performed on *cohorts*
+of patients.
 
 We will now a sets of cohorts one to train our data on::
 
@@ -99,7 +99,7 @@ getter quite similarly to how we did before::
 
     # file: simple_deploy.py
 
-    from deepest_histology.experiment_imports import *
+    from deepmed.experiment_imports import *
 
     test_cohorts_df = \
         cohort(tile_path='E:/TCGA-BRCA-DX/BLOCKS_NORM',
@@ -191,7 +191,7 @@ Doing it All at Once
 If we already know what data we want to train and deploy our model on
 beforehand, we can combine the two steps into one experiment::
 
-    from deepest_histology.experiment_imports import *
+    from deepmed.experiment_imports import *
 
     if __name__ == '__main__':
         do_experiment(

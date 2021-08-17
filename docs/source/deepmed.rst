@@ -1,4 +1,4 @@
-deepest\_histology package
+deepmed package
 ==========================
 
 Subpackages
@@ -7,39 +7,39 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   deepest_histology.get
+   deepmed.get
 
 Submodules
 ----------
 
-deepest\_histology.experiment\_imports module
+deepmed.experiment\_imports module
 ---------------------------------------------
 
-.. automodule:: deepest_histology.experiment_imports
+.. automodule:: deepmed.experiment_imports
    :members:
    :undoc-members:
    :show-inheritance:
 
-deepest\_histology.metrics module
+deepmed.metrics module
 ---------------------------------
 
-.. automodule:: deepest_histology.metrics
+.. automodule:: deepmed.metrics
    :members:
    :undoc-members:
    :show-inheritance:
 
-deepest\_histology.types module
+deepmed.types module
 -------------------------------
 
-.. automodule:: deepest_histology.types
+.. automodule:: deepmed.types
    :members:
    :undoc-members:
    :show-inheritance:
 
-deepest\_histology.utils module
+deepmed.utils module
 -------------------------------
 
-.. automodule:: deepest_histology.utils
+.. automodule:: deepmed.utils
    :members:
    :undoc-members:
    :show-inheritance:
@@ -47,7 +47,7 @@ deepest\_histology.utils module
 Module contents
 ---------------
 
-.. automodule:: deepest_histology
+.. automodule:: deepmed
    :members:
    :undoc-members:
    :show-inheritance:

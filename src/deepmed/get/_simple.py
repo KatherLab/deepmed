@@ -26,6 +26,21 @@ def cohort(
         tiles_path: PathLike, clini_path: PathLike, slide_path: PathLike,
         patient_label: str = 'PATIENT', slidename_label: str = 'FILENAME') \
         -> pd.DataFrame:
+    """Creates a cohort df from a slide and a clini table.
+    
+    Args:
+        tiles_path:  The path in which the slides' tiles are stored.  Each
+            slides' tiles have to be stored in a directory in ``tiles_path``
+            named after the slide.
+        clini_path:  The path of the clinical table, either in csv or excel
+            format.  The clinical table contains information on each patient.
+            It also needs to contain a column titled ``patient_label`` (default:
+            'PATIENT').
+        slide_path:  A table in csv or excel format mapping slides (in a column
+            ``slidename_label``) to patients (in a column ``patient_label``).
+        patient_label:  Label to merge the clinical and slide tables on.
+        slidename_label:  Column of the slide table containing the slide names.
+    """
     tiles_path, clini_path, slide_path = Path(tiles_path), Path(clini_path), Path(slide_path)
 
     clini_df = (
@@ -56,12 +71,12 @@ def simple_run(
         balance: bool = True,
         max_tile_num: int = 250,
         seed: int = 0,
-        valid_frac: float = .15,
+        valid_frac: float = .2,
         n_bins: int = 2,
         na_values: Iterable[Any] = [],
-        min_support: int = 10,
-        evaluators: Iterable[Evaluator] = []) \
-        -> Iterator[Run]:
+        min_support: int = 0,
+        evaluators: Iterable[Evaluator] = [],
+        ) -> Iterator[Run]:
     """Creates runs for a basic test-deploy procedure.
 
     This function will generate a single training and / or deployment run.  Due
@@ -81,8 +96,8 @@ def simple_run(
         project_dir:  Path to save project data to.
         train_cohorts_df:  The cohorts to use for training.
         test_cohorts_df:  The cohorts to test on.
-        max_tile_num:  The maximum number of tiles to take from each patient.
         balance:  Whether the training set should be balanced.
+        max_tile_num:  The maximum number of tiles to take from each patient.
         valid_frac:  The fraction of patients which will be reserved for
             validation during training.
         n_bins:  The number of bins to discretize continuous values into.
@@ -91,8 +106,8 @@ def simple_run(
             to be included in training.  Classes with less support are dropped.
 
     Yields:
-        A single run to train and / or deploy a model on the given training and
-        testing data.
+        A run to train and / or deploy a model on the given training and testing
+        data as well as an evaluation run.
     """
     logger = logging.getLogger(str(project_dir))
 

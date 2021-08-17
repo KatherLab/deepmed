@@ -3,7 +3,7 @@ Cross-Validation
 
 ::
 
-    from deepest_histology.experiment_imports import *
+    from deepmed.experiment_imports import *
 
     train_cohorts_df = pd.concat([
         cohort(tile_path='E:/TCGA-BRCA-DX/BLOCKS_NORM',
