@@ -37,8 +37,10 @@ class Run(ABC):
     requirements: Iterable[Event] = field(default_factory=list)
     """List of events which have to have occurred before this run can be started."""
 
-    @abstractmethod
-    def __call__(*_args, **_kwargs):
+    #FIXME this call signature seems _too_ fixed.  Can we make this nicer?
+    def __call__(
+            self, train: 'Trainer', deploy: 'Deployer', devices: Mapping[Union[int, str], Semaphore],
+            ) -> None:
         """Start this run."""
         raise NotImplementedError()
 
@@ -107,9 +109,9 @@ class GPURun(Run):
     - tile_path: Path
     """
 
-    def __call__(   # type: ignore
+    def __call__(
             self, train: Trainer, deploy: Deployer, devices: Mapping[Union[int, str], Semaphore],
-            **_) -> None:
+            ) -> None:
         super().wait()
         logger = logging.getLogger(str(self.directory))
         logger.info(f'Starting GPU run')
@@ -133,7 +135,9 @@ class GPURun(Run):
 class EvalRun(Run):
     evaluators: Iterable[Evaluator] = field(default_factory=list)
 
-    def __call__(self, **_) -> None:
+    def __call__(
+            self, train: Trainer, deploy: Deployer, devices: Mapping[Union[int, str], Semaphore]
+            ) -> None:
         super().wait()
         logger = logging.getLogger(str(self.directory))
         logger.info('Evaluating')
