@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
-from typing import Mapping, Union
+from typing import Mapping, Union, Optional
 from pathlib import Path
 from multiprocessing import Manager, Process
 from multiprocessing.pool import ThreadPool
@@ -22,7 +22,7 @@ def do_experiment(
         get: RunGetter,
         train: Trainer = train,
         deploy: Deployer = deploy,
-        num_concurrent_runs: int = 0,
+        num_concurrent_runs: Optional[int] = None,
         devices: Mapping[Union[str, int], int] = {0: 4},
         ) -> None:
     """Runs an experiement.
@@ -55,7 +55,9 @@ def do_experiment(
             for device, capacity in devices.items()}
         run_args = ({'run': run, 'train': train, 'deploy': deploy, 'devices': capacities}
                      for run in get(project_dir=project_dir, manager=manager))
-        num_concurrent_runs = num_concurrent_runs or sum(devices.values())*3
+        num_concurrent_runs = (
+                num_concurrent_runs if num_concurrent_runs is not None
+                else sum(devices.values()) * 3)
 
         # We use a ThreadPool which starts processes so our launched processes are:
         #  1. Terminated after each training run so we don't leak resources
