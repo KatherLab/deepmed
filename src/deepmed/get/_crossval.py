@@ -64,6 +64,7 @@ def crossval(
     distribution will be maintained.
     """
     logger = logging.getLogger(str(project_dir))
+    project_dir.mkdir(parents=True, exist_ok=True)
 
     if (folds_path := project_dir/'folds.csv.zip').exists():
         folded_df = pd.read_csv(folds_path)
@@ -76,7 +77,7 @@ def crossval(
             logger.warning(f'Not enough classes for target {target_label}! skipping...')
             return
 
-        logger.debug(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
+        logger.info(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
 
         folded_df = _create_folds(
                 cohorts_df=cohorts_df, target_label=target_label, folds=folds, seed=seed,

@@ -42,7 +42,6 @@ def multi_target(
     eval_reqirements = []
     for target_label in target_labels:
         target_dir = project_dir/target_label
-        target_dir.mkdir(parents=True, exist_ok=True)
 
         for run in get(
                 *args, project_dir=target_dir, manager=manager, target_label=target_label,
