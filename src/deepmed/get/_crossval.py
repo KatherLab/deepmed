@@ -67,6 +67,7 @@ def crossval(
 
     if (folds_path := project_dir/'folds.csv.zip').exists():
         folded_df = pd.read_csv(folds_path)
+        folded_df.tiles_path = folded_df.tiles_path.map(Path)
     else:
         cohorts_df = _prepare_cohorts(
                 cohorts_df, target_label, na_values, n_bins, min_support*folds//(folds-1), logger=logger)
