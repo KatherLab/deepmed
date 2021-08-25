@@ -144,7 +144,13 @@ def simple_run(
         elif test_cohorts_df is not None:
             logger.info(f'Searching for testing tiles')
             test_cohorts_df = _prepare_cohorts(
-                test_cohorts_df, target_label, na_values, n_bins, min_support, logger)
+                test_cohorts_df, target_label, na_values, n_bins, min_support=0, logger=logger)
+
+            # restrict testing set to classes present in training set
+            if train_df is not None:
+                train_classes = train_df[target_label].unique()
+                test_cohorts_df = test_cohorts_df[test_cohorts_df[target_label].isin(train_classes)]
+
             logger.info(f'Testing slide counts: {dict(test_cohorts_df[target_label].value_counts())}')
             test_df = _get_tiles(
                 cohorts_df=test_cohorts_df, max_tile_num=max_tile_num, seed=seed, logger=logger)
@@ -204,6 +210,10 @@ def _generate_train_df(
     logger.info(f'Searching for training tiles')
     tiles_df = _get_tiles(
         cohorts_df=train_cohorts_df, max_tile_num=max_tile_num, seed=seed, logger=logger)
+
+    # restrict to classes present in training set
+    train_classes = tiles_df[~tiles_df.is_valid][target_label].unique()
+    tiles_df = tiles_df[tiles_df[target_label].isin(train_classes)]
 
     logger.debug(
         f'Training tiles: {dict(tiles_df[~tiles_df.is_valid][target_label].value_counts())}')

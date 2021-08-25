@@ -9,9 +9,17 @@ from ._deploy import *
 __author__ = 'Marko van Treeck'
 __copyright__ = 'Copyright 2021, Kather Lab'
 __credits__ = [
-    'Jakob Nikolas Kather', 'Didem Cifci', 'Oliver Lester Saldanha', 'Marko van Treeck',
-    'Tobias Paul Seraphin', 'Céline Nicole Heinz', 'Chiara Loeffler', 'Hannah Sophie Muti']
+        'Amelie Echle',
+        'Céline Nicole Heinz',
+        'Chiara Loeffler',
+        'Didem Cifci',
+        'Jakob Nikolas Kather',
+        'Marko van Treeck',
+        'Oliver Lester Saldanha',
+        'Tobias Paul Seraphin',
+        'Hannah Sophie Muti',
+    ]
 __license__ = 'MIT'
-__version__ = '0.4.1'
+__version__ = '0.4.2'
 __maintainer__ = 'Marko van Treeck'
 __email__ = 'markovantreeck@gmail.com'
