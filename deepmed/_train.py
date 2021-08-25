@@ -1,23 +1,47 @@
 import shutil
 import os
 import logging
-from typing import Callable, Iterable, Optional
+import random
+from typing import Callable, Iterable, Optional, List
 from pathlib import Path
-from fastai.callback.tracker import TrackerCallback
+from functools import lru_cache
 
 import torch
 import pandas as pd
 from torch import nn
 
 from fastai.vision.all import (
-    Learner, DataBlock, ImageBlock, CategoryBlock, ColReader, ColSplitter, resnet18, cnn_learner,
+    Learner, DataBlock, CategoryBlock, ColReader, ColSplitter, resnet18, cnn_learner,
     BalancedAccuracy, SaveModelCallback, EarlyStoppingCallback, CSVLogger, CrossEntropyLossFlat,
-    aug_transforms, load_learner)
+    aug_transforms, load_learner, TransformBlock, IntToFloatTensor, PILImage)
+from fastai.callback.tracker import TrackerCallback
 
 from .utils import log_defaults
 from .types import GPURun
 
 __all__ = ['train']
+
+
+@lru_cache(10000)
+def get_tile_list(slide_dir: Path) -> List[Path]:
+    return list(slide_dir.glob('*.jpg'))
+
+
+def get_tile(tile_path) -> PILImage:
+    """Gets a tile.
+
+    If tile_path points to a file, the file is loaded directly.  If it's a
+    directory, a random file will be sampled."""
+    # Don't specify arg types! Otherwise fastai will do some whack dispatching
+    # and this function will not be called
+    tile_path = Path(tile_path)
+    if tile_path.is_dir():
+        tile_path = random.choice(get_tile_list(tile_path))
+
+    return PILImage.create(tile_path)
+
+
+TileBlock = TransformBlock(type_tfms=get_tile, batch_tfms=IntToFloatTensor)
 
 
 @log_defaults
@@ -67,7 +91,7 @@ def train(
         logger.debug('Cannot train: no training set given!')
         return None
 
-    dblock = DataBlock(blocks=(ImageBlock, CategoryBlock),
+    dblock = DataBlock(blocks=(TileBlock, CategoryBlock),
                        get_x=ColReader('tile_path'),
                        get_y=ColReader(target_label),
                        splitter=ColSplitter('is_valid'),
