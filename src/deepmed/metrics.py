@@ -17,6 +17,7 @@ Metrics may return a ``DataFrame``, which will be written to the result director
 ``stats.csv``.
 """
 
+import shutil
 from dataclasses import dataclass
 from typing import Optional, Iterable, Callable
 from pathlib import Path
@@ -294,9 +295,9 @@ def count(target_label: str, preds_df: pd.DataFrame, _result_dir) -> pd.DataFram
 def top_tiles(
         target_label: str, preds_df: pd.DataFrame, result_dir: Path,
         n_patients: int = 4, n_tiles: int = 4, patient_label: str = 'PATIENT',
-        best_patients: bool = True, best_tiles: Optional[bool] = None) -> None:
+        best_patients: bool = True, best_tiles: Optional[bool] = None,
+        save_images: bool = False) -> None:
     """Generates a grid of the best scoring tiles for each class.
-
     The function outputs a `n_patients` × `n_tiles` grid of tiles, where each
     row contains the `n_tiles` highest scoring tiles for one of the `n_patients`
     best-classified patients.
@@ -305,10 +306,13 @@ def top_tiles(
     best_tiles = best_tiles if best_tiles is not None else best_patients
 
     for class_ in preds_df[f'{target_label}_pred'].unique():
-        outfile = result_dir/_generate_tiles_fn(
+        outdir = result_dir/_generate_tiles_fn(
                 target_label, class_, best_patients, best_tiles, n_patients, n_tiles)
-        if outfile.exists():
+        outfile = outdir.with_suffix('.svg')
+        if outfile.exists() and (outdir.exists() or not save_images):
             continue
+        if save_images:
+            outdir.mkdir(parents=True, exist_ok=True)
 
         plt.figure(figsize=(n_patients, n_tiles), dpi=600)
         # get patients with the best overall ratings for the label
@@ -328,9 +332,12 @@ def top_tiles(
                      else patient_tiles.nsmallest(n=n_tiles, columns=f'{target_label}_{class_}').tile_path)
 
             for j, tile in enumerate(tiles):
-                plt.subplot(n_patients, n_tiles, i*n_tiles + j+1)
-                plt.axis('off')
-                plt.imshow(Image.open(tile))
+                if save_images:
+                    shutil.copy(tile, outdir/Path(tile).name)
+                if not outfile.exists():
+                    plt.subplot(n_patients, n_tiles, i*n_tiles + j+1)
+                    plt.axis('off')
+                    plt.imshow(Image.open(tile))
 
         plt.savefig(outfile, bbox_inches='tight')
         plt.close()
@@ -342,8 +349,7 @@ def _generate_tiles_fn(
     patient_str = f'{"best" if best_patients else "worst"}-{n_patients}-patients'
     tile_str = f'{"best" if best_tiles else "worst"}-{n_tiles}-tiles'
 
-    return f'{target_label}_{class_}_{patient_str}_{tile_str}.svg'
-
+    return f'{target_label}_{class_}_{patient_str}_{tile_str}'
 
 import numpy as np
 import matplotlib.pyplot as plt
