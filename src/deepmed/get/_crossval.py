@@ -18,7 +18,8 @@ class CrossvalBaseRunGetter(Protocol):
     def __call__(
             self, *args,
             project_dir: Path, manager: SyncManager, target_label: str,
-            train_cohorts_df: pd.DataFrame, test_cohorts_df: pd.DataFrame, **kwargs) \
+            train_cohorts_df: pd.DataFrame, test_cohorts_df: pd.DataFrame, min_support: int,
+            **kwargs) \
             -> Iterator[Run]:
         ...
 
@@ -34,7 +35,7 @@ def crossval(
         seed: int = 0,
         n_bins: int = 2,
         na_values: Iterable[Any] = [],
-        min_support: int = 0,
+        min_support: int = 10,
         patient_label: str = 'PATIENT',
         crossval_evaluators: Iterable[Evaluator] = [],
         *args, **kwargs) \
@@ -95,6 +96,7 @@ def crossval(
             manager=manager,
             train_cohorts_df=folded_df[folded_df.fold != fold],
             test_cohorts_df=folded_df[folded_df.fold == fold],
+            min_support=0,
             **kwargs)
     )
     requirements = []
