@@ -24,6 +24,7 @@ def do_experiment(
         deploy: Deployer = deploy,
         num_concurrent_runs: Optional[int] = None,
         devices: Mapping[Union[str, int], int] = {0: 4},
+        logfile: Optional[str] = 'logfile'
         ) -> None:
     """Runs an experiement.
 
@@ -43,11 +44,12 @@ def do_experiment(
     project_dir.mkdir(exist_ok=True, parents=True)
 
     # add logfile handler
-    file_handler = logging.FileHandler(project_dir/'logfile')
-    file_handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s: %(levelname)s: %(name)s: %(message)s')
-    file_handler.setFormatter(formatter)
-    logging.getLogger().addHandler(file_handler)
+    if logfile is not None:
+        file_handler = logging.FileHandler(f'{project_dir/"logfile"}')
+        file_handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s: %(levelname)s: %(name)s: %(message)s')
+        file_handler.setFormatter(formatter)
+        logging.getLogger().addHandler(file_handler)
 
     logger.info('Getting runs')
 

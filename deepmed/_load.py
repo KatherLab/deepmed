@@ -3,14 +3,14 @@ from pathlib import Path
 
 from fastai.vision.all import Learner
 
-from .types import Run
+from .types import GPURun
 from fastai.vision.learner import load_learner
 
 __all__ = ['load']
 
 
 def load(
-        run: Run, /,
+        run: GPURun, /,
         project_dir: Path,
         training_project_dir: Path) \
         -> Learner:
