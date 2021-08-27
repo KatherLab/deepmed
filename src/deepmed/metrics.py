@@ -298,9 +298,16 @@ def top_tiles(
         best_patients: bool = True, best_tiles: Optional[bool] = None,
         save_images: bool = False) -> None:
     """Generates a grid of the best scoring tiles for each class.
+
     The function outputs a `n_patients` × `n_tiles` grid of tiles, where each
     row contains the `n_tiles` highest scoring tiles for one of the `n_patients`
     best-classified patients.
+
+    Args:
+        best_patients:  Wether to select the best or worst n patients.
+        best_tiles:  Whether to select the highest or lowest scoring tiles.  If
+            set to ``None``, then the same as ``best_patients``.
+        save_images:  Also save the tiles seperately.
     """
     # set `best_tiles` to `best_patients` if undefined
     best_tiles = best_tiles if best_tiles is not None else best_patients
@@ -314,7 +321,7 @@ def top_tiles(
         if save_images:
             outdir.mkdir(parents=True, exist_ok=True)
 
-        plt.figure(figsize=(n_patients, n_tiles), dpi=600)
+        plt.figure(figsize=(n_tiles, n_patients), dpi=600)
         # get patients with the best overall ratings for the label
         class_instance_df = preds_df[preds_df[target_label] == class_]
         patient_scores = \
@@ -339,7 +346,8 @@ def top_tiles(
                     plt.axis('off')
                     plt.imshow(Image.open(tile))
 
-        plt.savefig(outfile, bbox_inches='tight')
+        if not outfile.exists():
+            plt.savefig(outfile, bbox_inches='tight')
         plt.close()
 
 
