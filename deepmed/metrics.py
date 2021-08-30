@@ -358,7 +358,7 @@ def top_tiles(
                 if not outfile.exists():
                     plt.subplot(n_patients, n_tiles, i*n_tiles + j+1)
                     plt.axis('off')
-                    plt.imshow(Image.open(tile))
+                    plt.imshow(Image.open(tile), cmap='gray')
 
         if not outfile.exists():
             plt.savefig(outfile, bbox_inches='tight')
