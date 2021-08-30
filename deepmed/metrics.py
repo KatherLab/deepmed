@@ -461,7 +461,7 @@ def roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path) -> None:
 def heatmap(
         target_label: str, preds_df: pd.DataFrame, path: Path,
         colors=np.array([[1, 0, 0], [0, 0, 1], [0, 1, 1], [1, 1, 0]]),
-        wsi_paths: Optional[Union[Path, str]] = [],
+        wsi_paths: Optional[Iterable[Union[Path, str]]] = None,
         wsi_suffixes: Iterable[str] = ['.svs', '.ndpi'], alpha: float = .5,
         superimpose: bool = False, format: str = '.svg') -> None:
     logger = logging.getLogger(str(path))
@@ -574,7 +574,10 @@ def heatmap(
 
 def _get_coords(filename: str) -> Optional[Tuple[int, int]]:
     if matches := re.match(r'.*\((\d+),(\d+)\)\.jpg', filename):
-        return tuple(map(int, matches.groups()))
+        coords = tuple(map(int, matches.groups()))
+        assert len(coords) == 2, 'Error extracting coordinates'
+        return (coords[0], coords[1]) # weird return format so mypy doesn't complain
+    else: return None
 
 
 def _get_stride(coordinates: np.array) -> int:
