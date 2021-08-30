@@ -10,5 +10,7 @@ from pathlib import Path
 from functools import partial
 import pandas as pd
 from deepmed import *
+from deepmed import get, metrics, multi_input, evaluators
 from deepmed.metrics import *
+from deepmed.evaluators import *
 from deepmed.get import cohort

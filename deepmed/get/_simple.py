@@ -1,7 +1,7 @@
 from multiprocessing.managers import SyncManager
 import random
 import logging
-from typing import Iterable, Sequence, Iterator, Optional, Any, Union, Mapping
+from typing import Iterable, Sequence, Iterator, Optional, Any, Union, Mapping, Callable
 from pathlib import Path
 from numbers import Number
 
@@ -12,7 +12,7 @@ from sklearn import preprocessing
 from tqdm import tqdm
 import numpy as np
 
-from ..metrics import Evaluator
+from ..evaluators.types import Evaluator
 from ..utils import log_defaults
 from .._experiment import Run, GPURun, EvalRun
 

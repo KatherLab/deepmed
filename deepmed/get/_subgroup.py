@@ -5,8 +5,7 @@ from pathlib import Path
 from typing_extensions import Protocol
 
 from .._experiment import Run, EvalRun
-from ..utils import log_defaults
-from ..metrics import Evaluator
+from ..evaluators.types import Evaluator
 
 import pandas as pd
 

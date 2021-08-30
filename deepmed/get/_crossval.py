@@ -10,7 +10,7 @@ from sklearn.model_selection import StratifiedKFold
 from .._experiment import Run, EvalRun
 from ._simple import _prepare_cohorts
 from ..utils import log_defaults
-from ..metrics import Evaluator
+from ..get import Evaluator
 
 
 class CrossvalBaseRunGetter(Protocol):

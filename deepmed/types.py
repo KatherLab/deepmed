@@ -19,7 +19,7 @@ import torch
 import pandas as pd
 from fastai.vision.all import Learner
 
-from .metrics import Evaluator
+from .evaluators.types import Evaluator
 
 __all__ = [
     'Run', 'GPURun', 'EvalRun', 'RunGetter', 'Trainer', 'Deployer', 'PathLike']
