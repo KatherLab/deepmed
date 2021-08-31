@@ -9,7 +9,7 @@ import scipy.stats as st
 
 
 def aggregate_stats(
-        _target_label, _preds_df, result_dir: Path, group_levels: Iterable[int] = [], /
+        _target_label, _preds_df, result_dir: Path, /, group_levels: Iterable[int] = [],
         ) -> pd.DataFrame:
     """Accumulates stats from subdirectories.
 
