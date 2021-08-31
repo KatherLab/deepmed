@@ -20,6 +20,6 @@ __credits__ = [
         'Hannah Sophie Muti',
     ]
 __license__ = 'MIT'
-__version__ = '0.4.2'
+__version__ = '0.5.0'
 __maintainer__ = 'Marko van Treeck'
 __email__ = 'markovantreeck@gmail.com'
