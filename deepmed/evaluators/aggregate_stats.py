@@ -66,7 +66,7 @@ def aggregate_stats(
     return stats_df
 
 
-def _get_header_and_index_col(csv_path: Path) -> Tuple(Iterable[int], Iterable[int]):
+def _get_header_and_index_col(csv_path: Path) -> Tuple[Iterable[int], Iterable[int]]:
     """Gets the number of header rows and index columns."""
     # FIXME bad, bad evil hack
     # assumes that the first header row contains as many empty fields as there are index columns and
