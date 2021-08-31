@@ -1,14 +1,14 @@
-from deepmed.evaluators.types import Evaluator
-from tempfile import TemporaryDirectory
 import unittest
+from tempfile import TemporaryDirectory
 
+from deepmed.evaluators.types import Evaluator
 from deepmed.experiment_imports import *
 
 
 cohorts_df=cohort(
     tiles_path='I:/tcga-brca-testing-tiles/tiles',
-    clini_path='I:/tcga-brca-testing-tiles/TCGA-BRCA-BENCHMARK-DEEPMED-CLINI.xlsx',
-    slide_path='I:/tcga-brca-testing-tiles/TCGA-BRCA-BENCHMARK-DEEPMED-SLIDE.xlsx')
+    clini_path='I:/tcga-brca-testing-tiles/tcga-brca-test-clini.xlsx',
+    slide_path='I:/tcga-brca-testing-tiles/tcga-brca-test-slide.xlsx'),
 
 
 class TestCategorical(unittest.TestCase):

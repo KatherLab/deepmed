@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
-from deepest_histology.experiment_imports import *
+from deepmed.experiment_imports import *
 
 
 if __name__ == '__main__':
     __spec__ = None
-    project_dir = r'K:\Marko\BRCA_DX_TCGA_deploy'
+    project_dir = 'multi_target_deploy'
+
     do_experiment(
         project_dir=project_dir,
         get=partial(
             get.multi_target,
             get.simple_run,
             test_cohorts_df=cohort(
-                tiles_path='D:/TCGA-BRCA-DX/BLOCKS_NORM_MACENKO',
-                clini_path='D:/BRCA_Docs/TCGA-BRCA-DX_CLINI.xlsx',
-                slide_path='D:/BRCA_Docs/TCGA-BRCA-DX_SLIDE_FULLNAMES.csv'),
-            target_labels=['PRStatus', 'HER2FinalStatus'],
-            max_tile_num=10,
-            valid_frac=.2,
-            na_values=['Not Available', 'Equivocal', 'Not Performed', 'Performed but Not Available'],
-            evaluators=[Grouped(auroc)],
+                tiles_path='I:/tcga-brca-testing-tiles/tiles',
+                clini_path='I:/tcga-brca-testing-tiles/tcga-brca-test-clini.xlsx',
+                slide_path='I:/tcga-brca-testing-tiles/tcga-brca-test-slide.xlsx'),
+            target_labels=['ER Status By IHC'],
+            max_test_tile_num=512,
+            evaluators=[Grouped(auroc), Grouped(f1), Grouped(count)],
             multi_target_evaluators=[aggregate_stats]
         ),
         train=partial(
             load,
             project_dir=project_dir,
-            training_project_dir=r'K:\Marko\debug\BRCA_DX_TCGA_full_training_refactor_test'),
-        num_concurrent_runs=4)
+            training_project_dir='multi_target_train'),
+        devices={'cuda:0': 4}
+    )
