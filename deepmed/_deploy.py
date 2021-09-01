@@ -1,27 +1,27 @@
 import logging
 from typing import Optional
 
-import numpy as np
 import pandas as pd
 from fastai.vision.all import Learner, CategoryMap
 
+from .types import GPUTask
 from .utils import log_defaults
 
 __all__ = ['deploy']
 
 
 @log_defaults
-def deploy(learn: Learner, run) -> Optional[pd.DataFrame]:
-    logger = logging.getLogger(str(run.directory))
+def deploy(learn: Learner, task: GPUTask) -> Optional[pd.DataFrame]:
+    logger = logging.getLogger(str(task.path))
 
-    if run.test_df is None:
+    if task.test_df is None:
         logger.warning('No testing set found! Skipping deployment...')
         return None
-    elif (preds_path := run.directory/'predictions.csv.zip').exists():
+    elif (preds_path := task.path/'predictions.csv.zip').exists():
         logger.warning(f'{preds_path} already exists, skipping deployment...')
         return pd.read_csv(preds_path, low_memory=False)
 
-    test_df, target_label = run.test_df, run.target
+    test_df, target_label = task.test_df, task.target_label
 
     test_dl = learn.dls.test_dl(test_df)
     # inner needed so we don't jump GPUs

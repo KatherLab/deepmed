@@ -22,61 +22,64 @@ from fastai.vision.all import Learner
 from .evaluators.types import Evaluator
 
 __all__ = [
-    'Run', 'GPURun', 'EvalRun', 'RunGetter', 'Trainer', 'Deployer', 'PathLike']
+    'Task', 'GPUTask', 'EvalTask', 'TaskGetter', 'Trainer', 'Deployer', 'PathLike']
 
 
-@dataclass
-class Run(ABC):
-    directory: Path
-    """The directory to save data in for this run."""
-    target: str
+@dataclass  # type: ignore
+class Task(ABC):
+    path: Path
+
+    """The directory to save data in for this task."""
+    target_label: str
     """The name of the target to train or deploy on."""
 
+    requirements: Iterable[Event]
+    """List of events which have to have occurred before this task can be
+    started."""
     done: Event
-    """Whether this run has concluded."""
-    requirements: Iterable[Event] = field(default_factory=list)
-    """List of events which have to have occurred before this run can be started."""
+    """Whether this task has concluded."""
 
-    #FIXME this call signature seems _too_ fixed.  Can we make this nicer?
-    def __call__(
-            self, train: 'Trainer', deploy: 'Deployer', devices: Mapping[Union[int, str], Semaphore],
-            ) -> None:
-        """Start this run."""
-        raise NotImplementedError()
-
-    def wait(self) -> None:
-        """Wait for all requirements to be completed"""
+    def run(self) -> None:
+        """Start this task."""
         for reqirement in self.requirements:
             reqirement.wait()
+        self.do_work()
+        self.done.set()
+
+    @abstractmethod
+    def do_work(self):
+        ...
 
 
-class RunGetter(Protocol):
-    def __call__(self, project_dir: Path, manager: BaseManager) -> Iterator[Run]:
-        """A function which creates a series of runs.
+class TaskGetter(Protocol):
+    def __call__(
+        self, project_dir: Path, manager: BaseManager, capacities: Mapping[Union[int, str], Semaphore]
+        ) -> Iterator[Task]:
+        """A function which creates a series of task.
 
         Args:
-            project_dir:  The directory to save the run's data in.
+            project_dir:  The directory to save the task's data in.
 
         Returns:
-            An iterator over all runs.
+            An iterator over all tasks.
         """
         raise NotImplementedError()
 
 
-Trainer = Callable[[Run], Optional[Learner]]
+Trainer = Callable[[Task], Optional[Learner]]
 """A function which trains a model.
 
 Args:
-    run:  The run to train.
+    task:  The task to train.
 
 Returns:
     The trained model.
 """
 
-Deployer = Callable[[Learner, Run], pd.DataFrame]
+Deployer = Callable[[Learner, Task], pd.DataFrame]
 """A function which deployes a model.
 
-Writes the results to a file ``predictions.csv.zip`` in the run directory.
+Writes the results to a file ``predictions.csv.zip`` in the task directory.
 
 Args:
     model:  The model to test on.
@@ -89,10 +92,13 @@ PathLike = Union[str, Path]
 
 
 @dataclass
-class GPURun(Run):
+class GPUTask(Task):
     """A collection of data to train or test a model."""
 
-    train_df: Optional[pd.DataFrame] = None
+    train: Trainer
+    deploy: Deployer
+
+    train_df: Optional[pd.DataFrame]
     """A dataframe mapping tiles to be used for training to their
        targets.
 
@@ -100,29 +106,29 @@ class GPURun(Run):
     - tile_path: Path
     - is_valid: bool:  whether the tile should be used for validation (e.g. for
     early stopping).
-    - At least one target column with the name saved in the run's `target`.
+    - At least one target column with the name saved in the task's `target`.
     """
-    test_df: Optional[pd.DataFrame] = None
+    test_df: Optional[pd.DataFrame]
     """A dataframe mapping tiles used for testing to their targets.
 
     It contains at least the following columns:
     - tile_path: Path
     """
 
-    def __call__(
-            self, train: Trainer, deploy: Deployer, devices: Mapping[Union[int, str], Semaphore],
-            ) -> None:
-        super().wait()
-        logger = logging.getLogger(str(self.directory))
-        logger.info(f'Starting GPU run')
+    capacities: Mapping[Union[int, str], Semaphore]
+    """Mapping of pytorch device names to their current capacities."""
 
-        for device, capacity in cycle(devices.items()):
+    def do_work(self) -> None:
+        logger = logging.getLogger(str(self.path))
+        logger.info(f'Starting GPU task')
+
+        for device, capacity in cycle(self.capacities.items()):
             # search for a free gpu
             if not capacity.acquire(blocking=False): continue   # type: ignore
             try:
                 with torch.cuda.device(device):
-                    learn = train(self)
-                    deploy(learn, self) if learn else None
+                    learn = self.train(self)
+                    self.deploy(learn, self) if learn else None
 
                     break
             except Exception as e:
@@ -132,20 +138,17 @@ class GPURun(Run):
 
 
 @dataclass
-class EvalRun(Run):
-    evaluators: Iterable[Evaluator] = field(default_factory=list)
+class EvalTask(Task):
+    evaluators: Iterable[Evaluator]
 
-    def __call__(
-            self, train: Trainer, deploy: Deployer, devices: Mapping[Union[int, str], Semaphore]
-            ) -> None:
-        super().wait()
-        logger = logging.getLogger(str(self.directory))
+    def do_work(self) -> None:
+        logger = logging.getLogger(str(self.path))
         logger.info('Evaluating')
 
-        preds_df = _generate_preds_df(self.directory)
+        preds_df = _generate_preds_df(self.path)
         stats_df = None
         for evaluate in self.evaluators:
-            if (df := evaluate(self.target, preds_df, self.directory)) is not None:
+            if (df := evaluate(self.target_label, preds_df, self.path)) is not None:
                 if stats_df is None:
                     stats_df = df
                 else:
@@ -155,7 +158,7 @@ class EvalRun(Run):
                     df = _raise_df_column_level(df, levels)
                     stats_df = stats_df.join(df)
         if stats_df is not None:
-            stats_df.to_csv(self.directory/'stats.csv')
+            stats_df.to_csv(self.path/'stats.csv')
 
 
 def _raise_df_column_level(df, level):

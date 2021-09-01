@@ -29,11 +29,11 @@ def main():
             target_labels=['ER Status By IHC'],
             max_test_tile_num=512,
             evaluators=[Grouped(auroc), Grouped(f1), Grouped(count)],
-            multi_target_evaluators=[aggregate_stats]
+            multi_target_evaluators=[aggregate_stats],
+            train=partial(
+                load,
+                project_dir=project_dir,
+                training_project_dir='multi_target_train'),
         ),
-        train=partial(
-            load,
-            project_dir=project_dir,
-            training_project_dir='multi_target_train'),
         devices={'cuda:0': 4}
     )

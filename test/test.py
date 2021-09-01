@@ -95,8 +95,8 @@ class TestEvaluators(unittest.TestCase):
                 train_cohorts_df=cls.cohorts_df,
                 test_cohorts_df=cls.cohorts_df,
                 target_label='ER Status By IHC',
-                max_train_tile_num=cls.max_train_tile_num),
-            train=partial(train, max_epochs=4),
+                max_train_tile_num=cls.max_train_tile_num,
+                train=partial(train, max_epochs=4)),
             logfile=None)
 
     @classmethod
@@ -146,7 +146,7 @@ class TestEvaluators(unittest.TestCase):
                 Path(self.training_dir.name) /
                 f'ER Status By IHC_{class_}_best-{n_patients}-patients_best-{n_tiles}-tiles.csv')
             self.assertEqual(df.PATIENT.nunique(), n_patients)
-            self.assertEqual(df.groupby('PATIENT').tile_path.count(), n_tiles)
+            self.assertTrue((df.groupby('PATIENT').tile_path.count() == n_tiles).all())
 
 
 def evaluate(project_dir: Union[str, Path], cohorts_df: pd.DataFrame, evaluators: Iterable[Evaluator]):

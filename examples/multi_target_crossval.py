@@ -28,11 +28,11 @@ def main():
                 partial(aggregate_stats, group_levels=[0, -1])],
             crossval_evaluators=[aggregate_stats],
             evaluators=[Grouped(auroc), Grouped(count)],
+            train=partial(
+                train,
+                batch_size=96,
+                max_epochs=4),
         ),
-        train=partial(
-            train,
-            batch_size=96,
-            max_epochs=4),
         devices={'cuda:0': 4})
 
 

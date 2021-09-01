@@ -27,19 +27,19 @@ def main():
             balance=True,   # weather to balance the training set
             na_values=['inconclusive'],  # labels to exclude in training
             min_support=10,  # minimal required patient-level class samples for a class to be considered
-        ),
-        train=partial(
-            train,
-            batch_size=96,
-            # absolute maximum number of epochs to train for (usually preceeded by early stopping)
-            max_epochs=32,
-            metrics=[BalancedAccuracy()],   # additional metrics
-            # epochs to continue training without improvement (will still select best model in the end)
-            patience=3,
-            monitor='valid_loss',   # metric to monitor for improvement
-            # augmentations to apply to data
-            tfms=aug_transforms(flip_vert=True, max_rotate=360,
-                                max_zoom=1, max_warp=0, size=224),
+            train=partial(
+                train,
+                batch_size=96,
+                # absolute maximum number of epochs to train for (usually preceeded by early stopping)
+                max_epochs=32,
+                metrics=[BalancedAccuracy()],   # additional metrics
+                # epochs to continue training without improvement (will still select best model in the end)
+                patience=3,
+                monitor='valid_loss',   # metric to monitor for improvement
+                # augmentations to apply to data
+                tfms=aug_transforms(flip_vert=True, max_rotate=360,
+                                    max_zoom=1, max_warp=0, size=224),
+            ),
         ),
         devices={'cuda:0': 4}
     )
