@@ -51,21 +51,25 @@ def top_tiles(
         patients = (patient_scores.nlargest(n_patients) if best_patients
                     else patient_scores.nsmallest(n_patients))
 
+        top_tile_list = []
         for i, patient in enumerate(patients.keys()):
             # get the best tile for that patient
             patient_tiles = preds_df[preds_df[patient_label] == patient]
 
-            tiles = (patient_tiles.nlargest(n=n_tiles, columns=f'{target_label}_{class_}').tile_path
+            tiles = (patient_tiles.nlargest(n=n_tiles, columns=f'{target_label}_{class_}')
                      if best_tiles
-                     else patient_tiles.nsmallest(n=n_tiles, columns=f'{target_label}_{class_}').tile_path)
+                     else patient_tiles.nsmallest(n=n_tiles, columns=f'{target_label}_{class_}'))
+            top_tile_list.append(tiles)
 
-            for j, tile in enumerate(tiles):
+            for j, tile in enumerate(tiles.tile_path):
                 if save_images:
                     shutil.copy(tile, outdir/Path(tile).name)
                 if not outfile.exists():
                     plt.subplot(n_patients, n_tiles, i*n_tiles + j+1)
                     plt.axis('off')
                     plt.imshow(Image.open(tile), cmap='gray')
+
+        pd.concat(top_tile_list).to_csv(outfile.with_suffix('.csv'), index=False)
 
         if not outfile.exists():
             plt.savefig(outfile, bbox_inches='tight')
