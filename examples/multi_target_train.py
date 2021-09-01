@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
 from deepmed.experiment_imports import *
 
-if __name__ == '__main__':
-    __spec__ = None
 
+# this is a tiny toy data set; do not expect any good results from this
+cohort_path = untar_data(
+    'https://katherlab-datasets.s3.eu-central-1.amazonaws.com/tiny-test-data.tar.gz')
+
+train_cohorts_df = cohort(
+    tiles_path=cohort_path/'tiles',
+    clini_path=cohort_path/'clini.csv',
+    slide_path=cohort_path/'slide.csv')
+
+
+def main():
     do_experiment(
         project_dir=r'multi_target_train',
         get=partial(
             get.multi_target,   # train for multiple targets
             get.simple_run,
-            train_cohorts_df=cohort(
-                    tiles_path='I:/tcga-brca-testing-tiles/tiles',
-                    clini_path='I:/tcga-brca-testing-tiles/tcga-brca-test-clini.xlsx',
-                    slide_path='I:/tcga-brca-testing-tiles/tcga-brca-test-slide.xlsx'),
+            train_cohorts_df=train_cohorts_df,
             target_labels=['ER Status By IHC'],  # target labels to train for
             max_train_tile_num=128,  # maximum number of tiles per patient to train with
             max_valid_tile_num=128,  # maximum number of tiles per patient to validate with
@@ -37,3 +43,7 @@ if __name__ == '__main__':
         ),
         devices={'cuda:0': 4}
     )
+
+
+if __name__ == '__main__':
+    main()
