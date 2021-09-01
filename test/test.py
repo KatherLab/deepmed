@@ -1,5 +1,6 @@
 import unittest
 from tempfile import TemporaryDirectory
+from itertools import product
 
 from deepmed.evaluators.types import Evaluator
 from deepmed.experiment_imports import *
@@ -124,6 +125,20 @@ class TestEvaluators(unittest.TestCase):
             (stats_df[('count', 'nan')] ==
              stats_df[('count', 'PATIENT')] * self.max_train_tile_num).all(),
             msg='Did not sample the correct number of tiles')
+
+
+    def test_top_tiles(self):
+        evaluate(self.training_dir.name, [partial(top_tiles, n_patients=6, n_tiles=3)])
+        for class_ in ['Positive', 'Negative']:
+            for ext in ['svg', 'csv']:
+                self.assertTrue(
+                    (Path(self.training_dir.name)/
+                    f'ER Status By IHC_{class_}_best-6-patients_best-3-tiles.{ext}').exists())
+            df = pd.read_csv(
+                Path(self.training_dir.name)/f'ER Status By IHC_{class_}_best-6-patients_best-3-tiles.csv')
+            self.assertEqual(df.PATIENT.nunique(), 6)
+
+
 
 
 def evaluate(project_dir: Union[str, Path], evaluators: Iterable[Evaluator]):
