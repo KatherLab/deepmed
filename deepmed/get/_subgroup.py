@@ -4,7 +4,7 @@ from typing import Iterable, Iterator, Mapping
 from pathlib import Path
 from typing_extensions import Protocol
 
-from .._experiment import Run, EvalRun
+from .._experiment import Task, EvalTask
 from ..evaluators.types import Evaluator
 
 import pandas as pd
@@ -20,12 +20,12 @@ def subgroup(
         subgroup_by: Mapping[str, Iterable[str]],
         subgroup_evaluators: Iterable[Evaluator] = [],
         **kwargs
-        ) -> Iterator[Run]:
+        ) -> Iterator[Task]:
     tasks = (
-        run
+        task
         for subgroup, classes in subgroup_by.items()
         for class_ in classes
-        for run in get( # type: ignore
+        for task in get( # type: ignore
             *args,
             project_dir=project_dir/f'{subgroup}_{class_}',
             target_label=target_label,
@@ -34,13 +34,13 @@ def subgroup(
             **kwargs))
     
     requirements = []
-    for run in tasks:
-        yield run
-        requirements.append(run.done)
+    for task in tasks:
+        yield task
+        requirements.append(task.done)
 
-    yield EvalRun(
-        directory=project_dir,
-        target=target_label,
+    yield EvalTask(
+        path=project_dir,
+        target_label=target_label,
         requirements=requirements,
         evaluators=subgroup_evaluators,
         done=manager.Event())

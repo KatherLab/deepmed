@@ -24,7 +24,7 @@ from fastai.vision.all import (
 from fastai.vision.learner import _add_norm, _default_meta
 
 from .utils import log_defaults
-from .types import GPURun
+from .types import GPUTask
 
 __all__ = ['train']
 
@@ -128,7 +128,7 @@ class Category:
 
 @log_defaults
 def train(
-        run: GPURun, /,
+        task: GPUTask, /,
         arch: Callable[[bool], nn.Module] = resnet18,
         batch_size: int = 64,
         max_epochs: int = 10,
@@ -145,7 +145,7 @@ def train(
     """Trains a single model.
 
     Args:
-        run:  The run to train a model for.
+        task:  The task to train a model for.
         arch:  The architecture of the model to train.
         max_epochs:  The absolute maximum number of epochs to train.
         lr:  The initial learning rate.
@@ -163,13 +163,13 @@ def train(
     If the training is interrupted, it will be continued from the last model
     checkpoint.
     """
-    logger = logging.getLogger(str(run.directory))
+    logger = logging.getLogger(str(task.path))
 
-    if (model_path := run.directory/'export.pkl').exists():
+    if (model_path := task.path/'export.pkl').exists():
         logger.warning(f'{model_path} already exists! using old model...')
         return load_learner(model_path, cpu=False)
 
-    target_label, train_df, result_dir = run.target, run.train_df, run.directory
+    target_label, train_df, result_dir = task.target_label, task.train_df, task.path
 
     if train_df is None:
         logger.debug('Cannot train: no training set given!')

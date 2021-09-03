@@ -4,6 +4,7 @@ import logging
 from typing import Iterable, Sequence, Iterator, Optional, Any, Union, Mapping, Callable
 from pathlib import Path
 from numbers import Number
+from multiprocessing.synchronize import Semaphore
 
 import torch
 import pandas as pd
@@ -14,7 +15,11 @@ import numpy as np
 
 from ..evaluators.types import Evaluator
 from ..utils import log_defaults
-from .._experiment import Run, GPURun, EvalRun
+from .._experiment import Task, GPUTask, EvalTask
+
+from .._train import train
+from .._deploy import deploy
+from ..types import Trainer, Deployer
 
 
 logger = logging.getLogger(__name__)
@@ -69,10 +74,13 @@ def simple_run(
         project_dir: Path,
         manager: SyncManager,
         target_label: str,
+        capacities: Mapping[Union[int, str], Semaphore],
         train_cohorts_df: Optional[pd.DataFrame] = None,
         test_cohorts_df: Optional[pd.DataFrame] = None,
         patient_label: str = 'PATIENT',
         balance: bool = True,
+        train: Trainer = train,
+        deploy: Deployer = deploy,
         resample_each_epoch: bool = False,
         max_train_tile_num: int = 64,
         max_valid_tile_num: int = 256,
@@ -84,12 +92,12 @@ def simple_run(
         min_support: int = 10,
         evaluators: Iterable[Evaluator] = [],
         max_class_count: Optional[Mapping[str, int]] = None,
-        ) -> Iterator[Run]:
-    """Creates runs for a basic test-deploy procedure.
+        ) -> Iterator[Task]:
+    """Creates tasks for a basic test-deploy procedure.
 
-    This function will generate a single training and / or deployment run.  Due
+    This function will generate a single training and / or deployment task.  Due
     to large in-patient similarities in slides it may be useful to only sample
-    a limited number of tiles will from each patient.  The run will have:
+    a limited number of tiles will from each patient.  The task will have:
 
     -   A training set, if ``train_cohorts`` is not empty. The training set will
         be balanced in such a way that each class is represented with a number
@@ -122,8 +130,8 @@ def simple_run(
             to be included in training.  Classes with less support are dropped.
 
     Yields:
-        A run to train and / or deploy a model on the given training and testing
-        data as well as an evaluation run.
+        A task to train and / or deploy a model on the given training and
+        testing data as well as an evaluation task.
     """
     logger = logging.getLogger(str(project_dir))
 
@@ -131,9 +139,9 @@ def simple_run(
     if (preds_df_path := project_dir/'predictions.csv.zip').exists():
         logger.warning(f'{preds_df_path} already exists, skipping training/deployment!')
 
-        yield EvalRun(
-            directory=project_dir,
-            target=target_label,
+        yield EvalTask(
+            path=project_dir,
+            target_label=target_label,
             done=manager.Event(),
             requirements=[],
             evaluators=evaluators)
@@ -177,17 +185,21 @@ def simple_run(
 
         gpu_done = manager.Event()
         eval_reqs.append(gpu_done)
-        yield GPURun(
-            directory=project_dir,
-            target=target_label,
+        yield GPUTask(
+            path=project_dir,
+            target_label=target_label,
+            requirements=[],
+            done=gpu_done,
+            train=train,
+            deploy=deploy,
             train_df=train_df,
             test_df=test_df,
-            done=gpu_done)
+            capacities=capacities)
 
         if test_df is not None:
-            yield EvalRun(
-                directory=project_dir,
-                target=target_label,
+            yield EvalTask(
+                path=project_dir,
+                target_label=target_label,
                 done=manager.Event(),
                 requirements=eval_reqs,
                 evaluators=evaluators)
