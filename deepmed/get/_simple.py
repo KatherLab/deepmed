@@ -28,7 +28,7 @@ def cohort(
         patient_label: str = 'PATIENT', slidename_label: str = 'FILENAME') \
         -> pd.DataFrame:
     """Creates a cohort df from a slide and a clini table.
-    
+
     Args:
         tiles_path:  The path in which the slides' tiles are stored.  Each
             slides' tiles have to be stored in a directory in ``tiles_path``
@@ -53,6 +53,9 @@ def cohort(
 
     cohort_df = clini_df.merge(slide_df, on=patient_label)
     cohort_df['slide_path'] = tiles_path/cohort_df[slidename_label]
+
+    assert cohort_df.slide_path.map(Path.exists).any(), \
+        f'none of the slide paths for "{slide_path}" exist!'
 
     logger.debug(f'#slides in {slide_path}: {len(slide_df)}')
     logger.debug(f'#patients in {clini_path}: {len(clini_df)}')
