@@ -49,7 +49,7 @@ def train(
         task: GPUTask, /,
         arch: Callable[[bool], nn.Module] = resnet18,
         batch_size: int = 64,
-        max_epochs: int = 10,
+        max_epochs: int = 32,
         lr: float = 2e-3,
         num_workers: int = 0,
         tfms: Optional[Callable] = aug_transforms(
