@@ -27,6 +27,7 @@ class CrossvalBaseTaskGetter(Protocol):
 @log_defaults
 def crossval(
         get: CrossvalBaseTaskGetter,
+        *args,
         project_dir: Path,
         target_label: str,
         cohorts_df: pd.DataFrame,
@@ -38,14 +39,14 @@ def crossval(
         min_support: int = 10,
         patient_label: str = 'PATIENT',
         crossval_evaluators: Iterable[Evaluator] = [],
-        *args, **kwargs) \
+        **kwargs) \
         -> Iterator[Task]:
     """Generates cross validation tasks for a single target.
 
     Args:
         get:  Getter to perform cross-validation with.
         project_dir:  Path to save project data to.
-        cohorts_df:  The cohorts to perform cross-validation on.
+        train_cohorts_df:  The cohorts to perform cross-validation on.
         valid_frac:  The fraction of patients which will be reserved for
             validation during training.
         folds:  Number of subsets to split the training data into.

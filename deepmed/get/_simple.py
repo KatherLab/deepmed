@@ -49,12 +49,13 @@ def cohort(
     """
     tiles_path, clini_path, slide_path = Path(tiles_path), Path(clini_path), Path(slide_path)
 
+    dtype = {patient_label: str, slidename_label: str}
     clini_df = (
-        pd.read_csv(clini_path, dtype=str) if clini_path.suffix == '.csv'
-        else pd.read_excel(clini_path, dtype=str))
+        pd.read_csv(clini_path, dtype=dtype) if clini_path.suffix == '.csv'
+        else pd.read_excel(clini_path, dtype=dtype))
     slide_df = (
-        pd.read_csv(slide_path, dtype=str) if slide_path.suffix == '.csv'
-        else pd.read_excel(slide_path, dtype=str))
+        pd.read_csv(slide_path, dtype=dtype) if slide_path.suffix == '.csv'
+        else pd.read_excel(slide_path, dtype=dtype))
 
     cohort_df = clini_df.merge(slide_df, on=patient_label)
     cohort_df['slide_path'] = tiles_path/cohort_df[slidename_label]
