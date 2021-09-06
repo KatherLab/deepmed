@@ -167,14 +167,9 @@ def simple_run(
         elif test_cohorts_df is not None:
             logger.info(f'Searching for testing tiles')
             test_cohorts_df = _prepare_cohorts(
-                test_cohorts_df, target_label, na_values, n_bins, min_support=0, logger=logger)
+                test_cohorts_df, target_label, na_values, n_bins=None, min_support=0, logger=logger)
 
-            # restrict testing set to classes present in training set
-            if train_df is not None:
-                train_classes = train_df[target_label].unique()
-                test_cohorts_df = test_cohorts_df[test_cohorts_df[target_label].isin(train_classes)]
-
-            logger.info(f'Testing slide counts: {dict(test_cohorts_df[target_label].value_counts())}')
+            logger.info(f'Testing slide counts: {len(test_cohorts_df)}')
             test_df = _get_tiles(
                 cohorts_df=test_cohorts_df, max_tile_num=max_test_tile_num, seed=seed, logger=logger)
 
@@ -273,8 +268,8 @@ def _generate_train_df(
 
 
 def _prepare_cohorts(
-        cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable[str], n_bins: int,
-        min_support: int, logger: logging.Logger) -> pd.DataFrame:
+        cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable[str],
+        n_bins: Optional[int], min_support: int, logger: logging.Logger) -> pd.DataFrame:
     """Preprocesses the cohorts.
 
     Discretizes continuous targets and drops classes for which only few examples
@@ -292,7 +287,8 @@ def _prepare_cohorts(
         try:
             cohorts_df[target_label] = cohorts_df[target_label].map(float)
             logger.info(f'Discretizing {target_label}')
-            cohorts_df[target_label] = _discretize(cohorts_df[target_label].values, n_bins=n_bins)
+            if n_bins is not None:
+                cohorts_df[target_label] = _discretize(cohorts_df[target_label].values, n_bins=n_bins)
         except ValueError:
             pass
 
@@ -316,7 +312,7 @@ def _discretize(xs: Sequence[Number], n_bins: int) -> Sequence[str]:
                 # labels for intermediate classes
                 *(f'[{lower},{upper})'
                 for lower, upper in zip(est.bin_edges_[0][1:], est.bin_edges_[0][2:-1])),
-                f'[{est.bin_edges_[0][-2]}, inf)'] # label for largest class
+                f'[{est.bin_edges_[0][-2]},inf)'] # label for largest class
     label_map = dict(enumerate(labels))
     discretized = est.transform(unsqueezed).reshape(-1).astype(int)
     return list(map(label_map.get, discretized)) # type: ignore
