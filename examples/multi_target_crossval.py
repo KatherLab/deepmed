@@ -3,7 +3,7 @@ from deepmed.experiment_imports import *
 
 # this is a tiny toy data set; do not expect any good results from this
 cohort_path = untar_data(
-    'https://katherlab-datasets.s3.eu-central-1.amazonaws.com/tiny-test-data.tar.gz')
+    'https://katherlab-datasets.s3.eu-central-1.amazonaws.com/tiny-test-data.zip')
 
 cohorts_df = cohort(
     tiles_path=cohort_path/'tiles',
