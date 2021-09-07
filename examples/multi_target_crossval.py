@@ -18,7 +18,7 @@ def main():
             get.multi_target,
             get.crossval,
             get.simple_run,
-            train_cohorts_df=cohorts_df,
+            cohorts_df=cohorts_df,
             target_labels=['ER Status By IHC'],
             max_train_tile_num=128,
             max_valid_tile_num=64,
