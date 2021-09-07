@@ -151,6 +151,7 @@ class EvalTask(Task):
             if (df := evaluate(self.target_label, preds_df, self.path)) is not None:
                 if stats_df is None:
                     stats_df = df
+                    stats_df.index.name = 'class'
                 else:
                     # make sure the two dfs have the same column level
                     levels = max(stats_df.columns.nlevels, df.columns.nlevels)

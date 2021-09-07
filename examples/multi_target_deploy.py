@@ -28,7 +28,7 @@ def main():
             target_labels=['ER Status By IHC'],
             max_test_tile_num=512,
             evaluators=[Grouped(auroc), Grouped(F1()), Grouped(count)],
-            multi_target_evaluators=[AggregateStats()],
+            multi_target_evaluators=[AggregateStats(label='target')],
             train=Load(
                 project_dir=project_dir,
                 training_project_dir='multi_target_train'),

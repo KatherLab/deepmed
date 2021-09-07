@@ -22,7 +22,7 @@ def main():
             max_valid_tile_num=64,
             max_test_tile_num=256,
             valid_frac=.2,
-            crossval_evaluators=[AggregateStats()],
+            crossval_evaluators=[AggregateStats(label='fold', over=['fold'])],
             evaluators=[Grouped(auroc), Grouped(count)],
             train=Train(
                 batch_size=96,
