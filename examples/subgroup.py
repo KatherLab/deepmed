@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from deepmed.evaluators.aggregate_stats import aggregate_stats
 from deepmed.experiment_imports import *
 
 
