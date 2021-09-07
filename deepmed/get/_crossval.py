@@ -10,7 +10,7 @@ from sklearn.model_selection import StratifiedKFold
 from .._experiment import Run, EvalRun
 from ._simple import _prepare_cohorts
 from ..utils import log_defaults
-from ..metrics import Evaluator
+from ..get import Evaluator
 
 
 class CrossvalBaseRunGetter(Protocol):
@@ -18,7 +18,8 @@ class CrossvalBaseRunGetter(Protocol):
     def __call__(
             self, *args,
             project_dir: Path, manager: SyncManager, target_label: str,
-            train_cohorts_df: pd.DataFrame, test_cohorts_df: pd.DataFrame, **kwargs) \
+            train_cohorts_df: pd.DataFrame, test_cohorts_df: pd.DataFrame, min_support: int,
+            **kwargs) \
             -> Iterator[Run]:
         ...
 
@@ -34,7 +35,7 @@ def crossval(
         seed: int = 0,
         n_bins: int = 2,
         na_values: Iterable[Any] = [],
-        min_support: int = 0,
+        min_support: int = 10,
         patient_label: str = 'PATIENT',
         crossval_evaluators: Iterable[Evaluator] = [],
         *args, **kwargs) \
@@ -68,7 +69,7 @@ def crossval(
 
     if (folds_path := project_dir/'folds.csv.zip').exists():
         folded_df = pd.read_csv(folds_path)
-        folded_df.tiles_path = folded_df.tiles_path.map(Path)
+        folded_df.slide_path = folded_df.slide_path.map(Path)
     else:
         cohorts_df = _prepare_cohorts(
                 cohorts_df, target_label, na_values, n_bins, min_support*folds//(folds-1), logger=logger)
@@ -95,6 +96,7 @@ def crossval(
             manager=manager,
             train_cohorts_df=folded_df[folded_df.fold != fold],
             test_cohorts_df=folded_df[folded_df.fold == fold],
+            min_support=0,
             **kwargs)
     )
     requirements = []

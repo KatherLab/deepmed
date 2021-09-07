@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Iterable, Iterator
 from typing_extensions import Protocol
 from ..types import Run, EvalRun
-from ..metrics import Evaluator
+from ..evaluators.types import Evaluator
 
 
 class MultiTargetBaseRunGetter(Protocol):

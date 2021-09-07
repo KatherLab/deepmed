@@ -1,7 +1,7 @@
 from multiprocessing.managers import SyncManager
 import random
 import logging
-from typing import Iterable, Sequence, Iterator, Optional, Any, Union, Mapping
+from typing import Iterable, Sequence, Iterator, Optional, Any, Union, Mapping, Callable
 from pathlib import Path
 from numbers import Number
 
@@ -12,7 +12,7 @@ from sklearn import preprocessing
 from tqdm import tqdm
 import numpy as np
 
-from ..metrics import Evaluator
+from ..evaluators.types import Evaluator
 from ..utils import log_defaults
 from .._experiment import Run, GPURun, EvalRun
 
@@ -52,7 +52,7 @@ def cohort(
         else pd.read_excel(slide_path, dtype=str))
 
     cohort_df = clini_df.merge(slide_df, on=patient_label)
-    cohort_df['tiles_path'] = tiles_path/cohort_df[slidename_label]
+    cohort_df['slide_path'] = tiles_path/cohort_df[slidename_label]
 
     logger.debug(f'#slides in {slide_path}: {len(slide_df)}')
     logger.debug(f'#patients in {clini_path}: {len(clini_df)}')
@@ -70,7 +70,10 @@ def simple_run(
         test_cohorts_df: Optional[pd.DataFrame] = None,
         patient_label: str = 'PATIENT',
         balance: bool = True,
-        max_tile_num: int = 250,
+        resample_each_epoch: bool = False,
+        max_train_tile_num: int = 64,
+        max_valid_tile_num: int = 256,
+        max_test_tile_num: int = 512,
         seed: int = 0,
         valid_frac: float = .2,
         n_bins: int = 2,
@@ -98,8 +101,16 @@ def simple_run(
         project_dir:  Path to save project data to.
         train_cohorts_df:  The cohorts to use for training.
         test_cohorts_df:  The cohorts to test on.
-        balance:  Whether the training set should be balanced.
-        max_tile_num:  The maximum number of tiles to take from each patient.
+        resample_each_epoch:  Whether to resample the training tiles used from
+            each slide each epoch.
+        max_train_tiles:  The maximum number of tiles per patient to use for
+            training in each epoch.
+        max_valid_tiles:  The maximum number of validation tiles used in each
+            epoch.
+        max_valid_tiles:  The maximum number of testing tiles used in each
+            epoch.
+        balance:  Whether the training set should be balanced.  Applies to
+            categorical targets only.
         valid_frac:  The fraction of patients which will be reserved for
             validation during training.
         n_bins:  The number of bins to discretize continuous values into.
@@ -131,8 +142,9 @@ def simple_run(
             train_df.is_valid = train_df.is_valid == 'True'
         elif train_cohorts_df is not None:
             train_df = _generate_train_df(
-                train_cohorts_df, target_label, na_values, n_bins, min_support, logger, patient_label,
-                valid_frac, max_tile_num, seed, train_df_path, balance, max_class_count)
+                train_cohorts_df, target_label, na_values, n_bins, min_support, logger,
+                patient_label, valid_frac, seed, train_df_path, balance, max_class_count,
+                resample_each_epoch, max_train_tile_num, max_valid_tile_num)
         else:
             train_df = None
 
@@ -153,8 +165,7 @@ def simple_run(
 
             logger.info(f'Testing slide counts: {dict(test_cohorts_df[target_label].value_counts())}')
             test_df = _get_tiles(
-                cohorts_df=test_cohorts_df, max_tile_num=max_tile_num, seed=seed, logger=logger)
-            logger.info(f'Testing tiles: {dict(test_df[target_label].value_counts())}')
+                cohorts_df=test_cohorts_df, max_tile_num=max_test_tile_num, seed=seed, logger=logger)
 
             train_df_path.parent.mkdir(parents=True, exist_ok=True)
             test_df.to_csv(test_df_path, index=False, compression='zip')
@@ -180,8 +191,11 @@ def simple_run(
 
 
 def _generate_train_df(
-        train_cohorts_df, target_label, na_values, n_bins, min_support, logger, patient_label,
-        valid_frac, max_tile_num, seed, train_df_path, balance, max_class_count):
+        train_cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable, n_bins: int,
+        min_support: int, logger, patient_label: str, valid_frac: float, seed: int,
+        train_df_path: Path, balance: bool, max_class_count: Optional[Mapping[str, int]],
+        resample_each_epoch: bool, max_train_tile_num: int, max_valid_tile_num: int
+        ) -> pd.DataFrame:
     train_cohorts_df = _prepare_cohorts(
         train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
 
@@ -208,27 +222,34 @@ def _generate_train_df(
     train_cohorts_df['is_valid'] = train_cohorts_df[patient_label].isin(valid_patients)
 
     logger.info(f'Searching for training tiles')
-    tiles_df = _get_tiles(
-        cohorts_df=train_cohorts_df, max_tile_num=max_tile_num, seed=seed, logger=logger)
+    train_df = _get_tiles(
+        cohorts_df=train_cohorts_df[~train_cohorts_df.is_valid],
+        max_tile_num=max_train_tile_num, seed=seed, logger=logger)
+
+    # if we want the training procedure to resample a slide's tiles every epoch,
+    # we have to supply a slide path instead of the tile path
+    if resample_each_epoch:
+        train_df.tile_path = train_df.tile_path.map(lambda p: p.parent)
+
+    valid_df = _get_tiles(
+        cohorts_df=train_cohorts_df[train_cohorts_df.is_valid],
+        max_tile_num=max_valid_tile_num, seed=seed, logger=logger)
 
     # restrict to classes present in training set
-    train_classes = tiles_df[~tiles_df.is_valid][target_label].unique()
-    tiles_df = tiles_df[tiles_df[target_label].isin(train_classes)]
+    train_classes = train_df[target_label].unique()
+    valid_df = valid_df[valid_df[target_label].isin(train_classes)]
 
-    logger.debug(
-        f'Training tiles: {dict(tiles_df[~tiles_df.is_valid][target_label].value_counts())}')
-    logger.debug(
-        f'Validation tiles: {dict(tiles_df[tiles_df.is_valid][target_label].value_counts())}')
+    logger.debug(f'Training tiles: {dict(train_df[target_label].value_counts())}')
+    logger.debug(f'Validation tiles: {dict(valid_df[target_label].value_counts())}')
 
     if balance:
-        train_cohorts_df = _balance_classes(
-            tiles_df=tiles_df[~tiles_df.is_valid], target=target_label)
-        valid_df = _balance_classes(tiles_df=tiles_df[tiles_df.is_valid], target=target_label)
-        logger.info(f'Training tiles after balancing: {len(train_cohorts_df)}')
+        train_df = _balance_classes(
+            tiles_df=train_df, target=target_label)
+        valid_df = _balance_classes(tiles_df=valid_df, target=target_label)
+        logger.info(f'Training tiles after balancing: {len(train_df)}')
         logger.info(f'Validation tiles after balancing: {len(valid_df)}')
-        train_df = pd.concat([train_cohorts_df, valid_df])
-    else:
-        train_df = tiles_df
+
+    train_df = pd.concat([train_df, valid_df])
 
     train_df_path.parent.mkdir(parents=True, exist_ok=True)
     train_df.to_csv(train_df_path, index=False, compression='zip')
@@ -265,6 +286,10 @@ def _prepare_cohorts(
     rare_classes = (class_counts[class_counts < min_support]).index
     cohorts_df = cohorts_df[~cohorts_df[target_label].isin(rare_classes)]
 
+    # filter slides w/o tiles
+    slides_with_tiles = cohorts_df.slide_path.map(lambda x: bool(next(x.glob('*.jpg'), False)))
+    cohorts_df = cohorts_df[slides_with_tiles]
+
     return cohorts_df
 
 
@@ -286,17 +311,16 @@ def _get_tiles(
         cohorts_df: pd.DataFrame, max_tile_num: int, seed: int, logger: logging.Logger) \
         -> pd.DataFrame:
     """Create df containing patient, tiles, other data."""
-    random.seed(seed)   #FIXME doesn't work
     tiles_dfs = []
     for _, data in tqdm(cohorts_df.groupby('PATIENT')):
         tiles = [(tile_dir, file)
-                 for tile_dir in data.tiles_path
+                 for tile_dir in data.slide_path
                  if tile_dir.exists()
                  for file in tile_dir.iterdir()]
         tiles = random.sample(tiles, min(len(tiles), max_tile_num))
-        tiles_df = pd.DataFrame(tiles, columns=['tiles_path', 'tile_path'])
+        tiles_df = pd.DataFrame(tiles, columns=['slide_path', 'tile_path'])
 
-        tiles_dfs.append(data.merge(tiles_df, on='tiles_path').drop(columns='tiles_path'))
+        tiles_dfs.append(data.merge(tiles_df, on='slide_path').drop(columns='slide_path'))
 
     tiles_df = pd.concat(tiles_dfs).reset_index(drop=True)
     logger.info(f'Found {len(tiles_df)} tiles for {len(tiles_df["PATIENT"].unique())} patients')

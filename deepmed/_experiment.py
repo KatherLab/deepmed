@@ -24,6 +24,7 @@ def do_experiment(
         deploy: Deployer = deploy,
         num_concurrent_runs: Optional[int] = None,
         devices: Mapping[Union[str, int], int] = {0: 4},
+        logfile: Optional[str] = 'logfile'
         ) -> None:
     """Runs an experiement.
 
@@ -43,24 +44,24 @@ def do_experiment(
     project_dir.mkdir(exist_ok=True, parents=True)
 
     # add logfile handler
-    file_handler = logging.FileHandler(project_dir/'logfile')
-    file_handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s: %(levelname)s: %(name)s: %(message)s')
-    file_handler.setFormatter(formatter)
-    logging.getLogger().addHandler(file_handler)
+    if logfile is not None:
+        file_handler = logging.FileHandler(f'{project_dir/"logfile"}')
+        file_handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s: %(levelname)s: %(name)s: %(message)s')
+        file_handler.setFormatter(formatter)
+        logging.getLogger().addHandler(file_handler)
 
     logger.info('Getting runs')
 
     with Manager() as manager:
         # semaphores which tell us which GPUs still have resources available
         capacities = {
-            device: manager.Semaphore(capacity)   # type: ignore
-            for device, capacity in devices.items()}
+                device: manager.Semaphore(capacity)   # type: ignore
+                for device, capacity in devices.items()}
         run_args = ({'run': run, 'train': train, 'deploy': deploy, 'devices': capacities}
                      for run in get(project_dir=project_dir, manager=manager))
-        num_concurrent_runs = (
-                num_concurrent_runs if num_concurrent_runs is not None
-                else sum(devices.values()) * 3)
+        num_concurrent_runs = \
+                sum(devices.values())*3 if num_concurrent_runs is None else num_concurrent_runs
 
         # We use a ThreadPool which starts processes so our launched processes are:
         #  1. Terminated after each training run so we don't leak resources

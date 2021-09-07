@@ -19,7 +19,7 @@ import torch
 import pandas as pd
 from fastai.vision.all import Learner
 
-from .metrics import Evaluator
+from .evaluators.types import Evaluator
 
 __all__ = [
     'Run', 'GPURun', 'EvalRun', 'RunGetter', 'Trainer', 'Deployer', 'PathLike']
@@ -171,7 +171,7 @@ def _raise_df_column_level(df, level):
     return pd.DataFrame(df.values, index=df.index, columns=columns)
 
 
-def _generate_preds_df(result_dir: Path) -> pd.DataFrame:
+def _generate_preds_df(result_dir: Path) -> Optional[pd.DataFrame]:
     # load predictions
     if (preds_path := result_dir/'predictions.csv.zip').exists():
         preds_df = pd.read_csv(preds_path, low_memory=False)
@@ -183,6 +183,8 @@ def _generate_preds_df(result_dir: Path) -> pd.DataFrame:
             # column which tells us which subset these predictions are from
             df[f'subset_{result_dir.name}'] = df_path.name
             dfs.append(df)
+
+        if not dfs: return None
 
         preds_df = pd.concat(dfs)
         preds_df.to_csv(preds_path, index=False, compression='zip')
