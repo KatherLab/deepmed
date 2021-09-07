@@ -8,7 +8,6 @@ from fastai.vision.all import *
 from packaging.specifiers import SpecifierSet
 
 from pathlib import Path
-from functools import partial
 import pandas as pd
 import deepmed
 from deepmed import *

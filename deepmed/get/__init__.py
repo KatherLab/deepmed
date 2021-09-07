@@ -4,6 +4,6 @@ from ._crossval import *
 from ._multi_target import *
 
 __all__ = [
-    'cohort', 'simple_run', 'subgroup',
-    'multi_target', 'MultiTargetBaseTaskGetter',
-    'crossval', 'CrossvalBaseTaskGetter']
+    'cohort', 'SimpleRun', 'Subgroup',
+    'MultiTarget', 'MultiTargetBaseTaskGetter',
+    'Crossval', 'CrossvalBaseTaskGetter']

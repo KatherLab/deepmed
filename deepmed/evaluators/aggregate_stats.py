@@ -7,10 +7,11 @@ import pandas as pd
 from pathlib import Path
 import scipy.stats as st
 
+from ..utils import factory
 
-def aggregate_stats(
-        _target_label, _preds_df, result_dir: Path, /, group_levels: Iterable[int] = [],
-        ) -> pd.DataFrame:
+
+def _aggregate_stats(
+        _target_label, _preds_df, result_dir: Path, /, group_levels: Iterable[int] = []) -> pd.DataFrame:
     """Accumulates stats from subdirectories.
 
     By default, this function simply concatenates the contents of all the
@@ -27,7 +28,8 @@ def aggregate_stats(
         header, index_col = _get_header_and_index_col(df_path)
         dfs.append(pd.read_csv(df_path, header=header, index_col=index_col))
     assert dfs, 'Could not find any stats.csvs to aggregate!'
-    stats_df = pd.concat(dfs, keys=[path.parent.name for path in stats_df_paths])
+    stats_df = pd.concat(
+        dfs, keys=[path.parent.name for path in stats_df_paths])
 
     if group_levels:
         # sum all labels which have 'count' in their topmost column level; calculate means,
@@ -82,3 +84,6 @@ def _get_header_and_index_col(csv_path: Path) -> Tuple[Iterable[int], Iterable[i
         header_no = next(i for i, line in enumerate(f) if line[0] != ',') + 1
 
     return (list(range(header_no)), list(range(index_no)))
+
+
+AggregateStats = factory(_aggregate_stats)

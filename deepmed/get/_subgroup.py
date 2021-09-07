@@ -1,17 +1,17 @@
 import logging
 from multiprocessing.managers import SyncManager
-from typing import Iterable, Iterator, Mapping, Callable, Union
+from typing import Iterable, Iterator, Callable, Union
 from pathlib import Path
-from typing_extensions import Protocol
-
-from .._experiment import Task, EvalTask
-from ..evaluators.types import Evaluator
 
 import pandas as pd
 
+from .._experiment import Task, EvalTask
+from ..evaluators.types import Evaluator
+from ..utils import factory
+
 
 # @log_defaults
-def subgroup(
+def _subgroup(
         get,
         *args,
         project_dir: Path,
@@ -21,8 +21,7 @@ def subgroup(
         subgroup_evaluators: Iterable[Evaluator] = [],
         cohort_df_arg_names: Iterable[str] = [
             'cohorts_df', 'train_cohorts_df', 'test_cohorts_df'],
-        **kwargs
-) -> Iterator[Task]:
+        **kwargs) -> Iterator[Task]:
     """Splits a training data set into multiple subgroups.
 
     Args:
@@ -72,3 +71,5 @@ def subgroup(
         requirements=requirements,
         evaluators=subgroup_evaluators,
         done=manager.Event())
+
+Subgroup = factory(_subgroup)

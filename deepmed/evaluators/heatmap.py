@@ -1,3 +1,4 @@
+from deepmed.utils import factory
 from typing import Optional, Iterable, Union, Tuple
 import pandas as pd
 import numpy as np
@@ -10,7 +11,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 
-def heatmap(
+def _heatmap(
         target_label: str, preds_df: pd.DataFrame, path: Path,
         colors=np.array([[1, 0, 0], [0, 0, 1], [0, 1, 1], [1, 1, 0]]),
         wsi_paths: Optional[Iterable[Union[Path, str]]] = None,
@@ -159,3 +160,6 @@ def _visualize_activation_map(activations: np.ndarray, colors: np.ndarray, alpha
     im_data = (np.concatenate([rgbmap, np.expand_dims(mask * alpha, -1)], axis=2) * 255.5).astype(np.uint8)
 
     return Image.fromarray(im_data)
+
+
+Heatmap = factory(_heatmap)

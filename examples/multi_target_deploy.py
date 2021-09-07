@@ -22,16 +22,14 @@ def main():
 
     do_experiment(
         project_dir=project_dir,
-        get=partial(
-            get.multi_target,
-            get.simple_run,
+        get=get.MultiTarget(
+            get.SimpleRun(),
             test_cohorts_df=test_cohorts_df,
             target_labels=['ER Status By IHC'],
             max_test_tile_num=512,
-            evaluators=[Grouped(auroc), Grouped(f1), Grouped(count)],
-            multi_target_evaluators=[aggregate_stats],
-            train=partial(
-                load,
+            evaluators=[Grouped(auroc), Grouped(F1()), Grouped(count)],
+            multi_target_evaluators=[AggregateStats()],
+            train=Load(
                 project_dir=project_dir,
                 training_project_dir='multi_target_train'),
         ),

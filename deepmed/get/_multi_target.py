@@ -4,25 +4,27 @@ from typing import Iterable, Iterator, Mapping, Any
 from typing_extensions import Protocol
 from ..types import Task, EvalTask
 from ..evaluators.types import Evaluator
+from ..utils import factory
 
 
 class MultiTargetBaseTaskGetter(Protocol):
     """The signature of a task getter which can be modified by ``multi_target``."""
+
     def __call__(
             self, *args,
             project_dir: Path, manager: SyncManager, target_label: str, **kwargs) -> Iterator[Task]:
         ...
 
 
-def multi_target(
-    get: MultiTargetBaseTaskGetter,
-    *args,
-    project_dir: Path,
-    manager: SyncManager,
-    target_labels: Iterable[str],
-    multi_target_evaluators: Iterable[Evaluator] = [],
-    target_kwargs: Mapping[str, Mapping[str, Any]] = {},
-    **kwargs) -> Iterator[Task]:
+def _multi_target(
+        get: MultiTargetBaseTaskGetter,
+        *args,
+        project_dir: Path,
+        manager: SyncManager,
+        target_labels: Iterable[str],
+        multi_target_evaluators: Iterable[Evaluator] = [],
+        target_kwargs: Mapping[str, Mapping[str, Any]] = {},
+        **kwargs) -> Iterator[Task]:
     """Adapts a `TaskGetter` into a multi-target one.
 
     Args:
@@ -60,3 +62,6 @@ def multi_target(
         requirements=eval_reqirements,
         evaluators=multi_target_evaluators,
         done=manager.Event())
+
+
+MultiTarget = factory(_multi_target)

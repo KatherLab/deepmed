@@ -7,6 +7,8 @@ import scipy.stats as st
 import pandas as pd
 from pathlib import Path
 
+from ..utils import factory
+
 
 def _plot_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, conf: float = 0.95):
     # gracefully stolen from <https://scikit-learn.org/stable/auto_examples/model_selection/plot_roc_crossval.html>
@@ -68,7 +70,7 @@ def _plot_simple_roc(df: pd.DataFrame, target_label: str, pos_label: str, ax, co
     ax.legend(loc="lower right")
 
 
-def roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path) -> None:
+def _roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path) -> None:
     """Creates a one-vs-all ROC curve plot for each class."""
     y_true = preds_df[target_label]
     for class_ in y_true.unique():
@@ -84,3 +86,5 @@ def roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path) -> None:
 
         fig.savefig(outfile)
         plt.close()
+
+Roc = factory(_roc)

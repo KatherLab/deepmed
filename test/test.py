@@ -10,7 +10,7 @@ class TestSeperateTrainAndDeploy(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         path = untar_data(
-            'https://katherlab-datasets.s3.eu-central-1.amazonaws.com/tiny-test-data.tar.gz')
+            'https://katherlab-datasets.s3.eu-central-1.amazonaws.com/tiny-test-data.zip')
         cls.cohorts_df = cohort(
             tiles_path=path/'tiles',
             clini_path=path/'clini.csv',
@@ -21,13 +21,12 @@ class TestSeperateTrainAndDeploy(unittest.TestCase):
         with TemporaryDirectory() as training_dir:
             do_experiment(
                 project_dir=training_dir,
-                get=partial(
-                    get.simple_run,
+                get=get.SimpleRun(
                     train_cohorts_df=self.cohorts_df,
                     target_label='ER Status By IHC',
                     max_train_tile_num=4,
                     max_valid_tile_num=4),
-                train=partial(train, max_epochs=1),
+                train=Train(max_epochs=1),
                 logfile=None)
 
             train_df = pd.read_csv(Path(training_dir)/'training_set.csv.zip')
@@ -46,8 +45,7 @@ class TestSeperateTrainAndDeploy(unittest.TestCase):
                         test_cohorts_df=self.cohorts_df,
                         target_label='ER Status By IHC',
                         max_test_tile_num=max_test_tile_num),
-                    train=partial(
-                        load,
+                    train=Load(
                         project_dir=Path(testing_dir),
                         training_project_dir=Path(training_dir)),
                     logfile=None)
@@ -55,8 +53,7 @@ class TestSeperateTrainAndDeploy(unittest.TestCase):
                 # add some evaluation
                 do_experiment(
                     project_dir=testing_dir,
-                    get=partial(
-                        get.simple_run,
+                    get=get.SimpleRun(
                         test_cohorts_df=self.cohorts_df,
                         target_label='ER Status By IHC',
                         evaluators=[Grouped(auroc), count, Grouped(count)]),
@@ -78,7 +75,7 @@ class TestEvaluators(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         path = untar_data(
-            'https://katherlab-datasets.s3.eu-central-1.amazonaws.com/tiny-test-data.tar.gz')
+            'https://katherlab-datasets.s3.eu-central-1.amazonaws.com/tiny-test-data.zip')
         cls.cohorts_df = cohort(
             tiles_path=path/'tiles',
             clini_path=path/'clini.csv',
@@ -90,13 +87,12 @@ class TestEvaluators(unittest.TestCase):
         # train and deploy
         do_experiment(
             project_dir=cls.training_dir.name,
-            get=partial(
-                get.simple_run,
+            get=get.SimpleRun(
                 train_cohorts_df=cls.cohorts_df,
                 test_cohorts_df=cls.cohorts_df,
                 target_label='ER Status By IHC',
                 max_train_tile_num=cls.max_train_tile_num,
-                train=partial(train, max_epochs=4)),
+                train=Train(max_epochs=4)),
             logfile=None)
 
     @classmethod
@@ -118,7 +114,8 @@ class TestEvaluators(unittest.TestCase):
             msg='AUROC for binary target not symmetric!')
 
     def test_f1(self):
-        evaluate(self.training_dir.name, self.cohorts_df, [f1, Grouped(f1)])
+        evaluate(self.training_dir.name,
+                 self.cohorts_df, [F1(), Grouped(F1())])
         stats_df = pd.read_csv(
             Path(self.training_dir.name)/'stats.csv', index_col=0, header=[0, 1])
         self.assertIn(('f1 optimal', 'nan'), stats_df.columns)
@@ -137,7 +134,7 @@ class TestEvaluators(unittest.TestCase):
     def test_top_tiles(self):
         n_patients, n_tiles = 6, 3
         evaluate(self.training_dir.name, self.cohorts_df, [
-                 partial(top_tiles, n_patients=n_patients, n_tiles=n_tiles)])
+                 TopTiles(n_patients=n_patients, n_tiles=n_tiles)])
         for class_ in ['Positive', 'Negative']:
             self.assertTrue(
                 (Path(self.training_dir.name) /
@@ -146,14 +143,14 @@ class TestEvaluators(unittest.TestCase):
                 Path(self.training_dir.name) /
                 f'ER Status By IHC_{class_}_best-{n_patients}-patients_best-{n_tiles}-tiles.csv')
             self.assertEqual(df.PATIENT.nunique(), n_patients)
-            self.assertTrue((df.groupby('PATIENT').tile_path.count() == n_tiles).all())
+            self.assertTrue(
+                (df.groupby('PATIENT').tile_path.count() == n_tiles).all())
 
 
 def evaluate(project_dir: Union[str, Path], cohorts_df: pd.DataFrame, evaluators: Iterable[Evaluator]):
     do_experiment(
         project_dir=project_dir,
-        get=partial(
-            get.simple_run,
+        get=get.SimpleRun(
             test_cohorts_df=cohorts_df,
             target_label='ER Status By IHC',
             evaluators=evaluators),

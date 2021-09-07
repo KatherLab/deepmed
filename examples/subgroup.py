@@ -24,19 +24,16 @@ def subgrouper(x: pd.Series):
 def main():
     do_experiment(
         project_dir='subgroup',
-        get=partial(
-            get.subgroup,
-            get.simple_run,
+        get=get.Subgroup(
+            get.SimpleRun(),
             train_cohorts_df=cohorts_df,
             test_cohorts_df=cohorts_df,
             target_label='ER Status By IHC',
             subgrouper=subgrouper,
             valid_frac=.2,
             evaluators=[Grouped(auroc), Grouped(count)],
-            subgroup_evaluators=[aggregate_stats],
-            train=partial(
-                train,
-                max_epochs=1),
+            subgroup_evaluators=[AggregateStats()],
+            train=Train(max_epochs=1),
         ),
         devices={'cuda:0': 4}
     )

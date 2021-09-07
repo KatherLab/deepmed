@@ -14,10 +14,9 @@ train_cohorts_df = cohort(
 
 def main():
     do_experiment(
-        project_dir=r'multi_target_train',
-        get=partial(
-            get.multi_target,   # train for multiple targets
-            get.simple_run,
+        project_dir='multi_target_train',
+        get=get.MultiTarget(    # train for multiple targets
+            get.SimpleRun(),
             train_cohorts_df=train_cohorts_df,
             target_labels=['ER Status By IHC'],  # target labels to train for
             max_train_tile_num=128,  # maximum number of tiles per patient to train with
@@ -27,8 +26,7 @@ def main():
             balance=True,   # weather to balance the training set
             na_values=['inconclusive'],  # labels to exclude in training
             min_support=10,  # minimal required patient-level class samples for a class to be considered
-            train=partial(
-                train,
+            train=Train(
                 batch_size=96,
                 # absolute maximum number of epochs to train for (usually preceeded by early stopping)
                 max_epochs=32,

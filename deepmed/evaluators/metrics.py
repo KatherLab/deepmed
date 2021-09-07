@@ -29,8 +29,7 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import scipy.stats as st
 
-
-__all__ = ['f1', 'auroc', 'count', 'p_value', 'confusion_matrix']
+from ..utils import factory
 
 
 def p_value(target_label: str, preds_df: pd.DataFrame, _result_dir: Path) -> pd.DataFrame:
@@ -42,9 +41,9 @@ def p_value(target_label: str, preds_df: pd.DataFrame, _result_dir: Path) -> pd.
     return pd.DataFrame.from_dict(stats, orient='index', columns=['p value'])
 
 
-def f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path,
-       min_tpr: Optional[float] = None) \
-       -> pd.DataFrame:
+def _f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path,
+        min_tpr: Optional[float] = None) \
+        -> pd.DataFrame:
     """Calculates the F1 score.
 
     Args:
@@ -59,13 +58,17 @@ def f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path,
         thresh = _get_thresh(target_label, preds_df, class_, min_tpr=min_tpr)
 
         stats[class_] = \
-            skm.f1_score(y_true == class_, preds_df[f'{target_label}_{class_}'] >= thresh)
+            skm.f1_score(y_true == class_,
+                         preds_df[f'{target_label}_{class_}'] >= thresh)
 
     return pd.DataFrame.from_dict(
         stats, columns=[f'f1 {min_tpr or "optimal"}'], orient='index')
 
 
-def confusion_matrix(
+F1 = factory(_f1)
+
+
+def _confusion_matrix(
         target_label: str, preds_df: pd.DataFrame, result_dir: Path,
         min_tpr: Optional[float] = None) \
         -> None:
@@ -79,7 +82,8 @@ def confusion_matrix(
     classes = preds_df[target_label].unique()
     if len(classes) == 2:
         for class_ in classes:
-            thresh = _get_thresh(target_label, preds_df, pos_label=class_, min_tpr=min_tpr)
+            thresh = _get_thresh(target_label, preds_df,
+                                 pos_label=class_, min_tpr=min_tpr)
             y_true = preds_df[target_label] == class_
             y_pred = preds_df[f'{target_label}_{class_}'] >= thresh
             cm = skm.confusion_matrix(y_true, y_pred)
@@ -92,17 +96,21 @@ def confusion_matrix(
                 f'{target_label} ' +
                 (f"({class_} TPR ≥ {min_tpr})" if min_tpr
                     else f"(Optimal {class_} F1 Score)"))
-            plt.savefig(result_dir/
+            plt.savefig(result_dir /
                         f'conf_matrix_{target_label}_{class_}_{min_tpr or "opt"}.svg')
             plt.close()
-    else:   #TODO does this work?
+    else:  # TODO does this work?
         cm = skm.confusion_matrix(
             preds_df[target_label], preds_df[f'{target_label}_pred'], labels=classes)
-        disp = skm.ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
+        disp = skm.ConfusionMatrixDisplay(
+            confusion_matrix=cm, display_labels=classes)
         disp.plot()
         plt.title(f'{target_label}')
         plt.savefig(result_dir/f'conf_matrix_{target_label}.svg')
         plt.close()
+
+
+ConfusionMatrix = factory(_confusion_matrix)
 
 
 def _get_thresh(target_label: str, preds_df: pd.DataFrame, pos_label: str,
@@ -136,8 +144,8 @@ def auroc(target_label: str, preds_df: pd.DataFrame, _result_dir) -> pd.DataFram
     """Calculates the one-vs-rest AUROC for each class of the target label."""
     y_true = preds_df[target_label]
     df = pd.DataFrame.from_dict(
-        {class_: [skm.roc_auc_score(y_true==class_, preds_df[f'{target_label}_{class_}'])]
-                  for class_ in y_true.unique()},
+        {class_: [skm.roc_auc_score(y_true == class_, preds_df[f'{target_label}_{class_}'])]
+         for class_ in y_true.unique()},
         columns=['auroc'], orient='index')
     return df
 

@@ -1,10 +1,10 @@
 import inspect
 import logging
 from typing import Callable, Any
-from functools import wraps, cached_property
+from functools import wraps, cached_property, partial
 import pandas as pd
 
-__all__ = ['log_defaults', 'Lazy', 'is_continuous']
+__all__ = ['log_defaults', 'Lazy', 'is_continuous', 'factory']
 
 
 def log_defaults(func):
@@ -54,3 +54,10 @@ class Lazy:
 
 def is_continuous(series: pd.Series) -> bool:
     return series.dtype == float
+
+
+def factory(f: Callable) -> Callable[..., Callable]:
+    @wraps(f)
+    def g(*args, **kwargs) -> Callable:
+        return partial(f, *args, **kwargs)
+    return g

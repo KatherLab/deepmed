@@ -9,12 +9,13 @@ from sklearn.model_selection import StratifiedKFold
 
 from .._experiment import Task, EvalTask
 from ._simple import _prepare_cohorts
-from ..utils import log_defaults
+from ..utils import log_defaults, factory
 from ..get import Evaluator
 
 
 class CrossvalBaseTaskGetter(Protocol):
     """The signature of a task getter which can be modified by ``crossval``."""
+
     def __call__(
             self, *args,
             project_dir: Path, manager: SyncManager, target_label: str,
@@ -25,7 +26,7 @@ class CrossvalBaseTaskGetter(Protocol):
 
 
 @log_defaults
-def crossval(
+def _crossval(
         get: CrossvalBaseTaskGetter,
         *args,
         project_dir: Path,
@@ -69,28 +70,30 @@ def crossval(
     project_dir.mkdir(parents=True, exist_ok=True)
 
     if (folds_path := project_dir/'folds.csv.zip').exists():
-        folded_df = pd.read_csv(folds_path, dtype=str) # dtype=str
+        folded_df = pd.read_csv(folds_path, dtype=str)  # dtype=str
         folded_df.slide_path = folded_df.slide_path.map(Path)
     else:
         cohorts_df = _prepare_cohorts(
-                cohorts_df, target_label, na_values, n_bins, min_support*folds//(folds-1), logger=logger)
+            cohorts_df, target_label, na_values, n_bins, min_support*folds//(folds-1), logger=logger)
 
         if cohorts_df[target_label].nunique() < 2:
-            logger.warning(f'Not enough classes for target {target_label}! skipping...')
+            logger.warning(
+                f'Not enough classes for target {target_label}! skipping...')
             return
 
-        logger.info(f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
+        logger.info(
+            f'Slide target counts: {dict(cohorts_df[target_label].value_counts())}')
 
         folded_df = _create_folds(
-                cohorts_df=cohorts_df, target_label=target_label, folds=folds, seed=seed,
-                patient_label=patient_label)
+            cohorts_df=cohorts_df, target_label=target_label, folds=folds, seed=seed,
+            patient_label=patient_label)
         folded_df.to_csv(folds_path, compression='zip')
 
     # accumulate first to ensure training / testing set data is saved
     fold_tasks = (
         task
         for fold in sorted(folded_df.fold.unique())
-        for task in get( # type: ignore
+        for task in get(  # type: ignore
             *args,
             project_dir=project_dir/f'fold_{fold}',
             target_label=target_label,
@@ -128,6 +131,10 @@ def _create_folds(
     cohorts_df['fold'] = 0
     for fold, (_, test_idx) \
             in enumerate(kf.split(patients.index, patients)):
-        cohorts_df.loc[cohorts_df[patient_label].isin(patients.iloc[test_idx].index), 'fold'] = fold
+        cohorts_df.loc[cohorts_df[patient_label].isin(
+            patients.iloc[test_idx].index), 'fold'] = fold
 
     return cohorts_df
+
+
+Crossval = factory(_crossval)

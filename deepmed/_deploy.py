@@ -7,13 +7,13 @@ from fastai.vision.all import Learner, CategoryMap
 from typing import Iterable
 
 from .types import GPUTask
-from .utils import log_defaults, is_continuous
+from .utils import log_defaults, is_continuous, factory
 
-__all__ = ['deploy']
+__all__ = ['Deploy']
 
 
 @log_defaults
-def deploy(learn: Learner, task: GPUTask) -> Optional[pd.DataFrame]:
+def _deploy(learn: Learner, task: GPUTask) -> Optional[pd.DataFrame]:
     logger = logging.getLogger(str(task.path))
 
     if task.test_df is None:
@@ -29,12 +29,14 @@ def deploy(learn: Learner, task: GPUTask) -> Optional[pd.DataFrame]:
     if not isinstance(vocab, CategoryMap):
         vocab = vocab[-1]
 
-    test_df = _discretize_if_necessary(test_df=test_df, target_label=target_label, vocab=vocab)
+    test_df = _discretize_if_necessary(
+        test_df=test_df, target_label=target_label, vocab=vocab)
 
     # restrict testing classes to those known by the model
     if not (known_idx := test_df[target_label].isin(vocab)).all():
         unknown_classes = test_df[~known_idx].unique()
-        logger.warning(f'classes unknown to model in test data: {unknown_classes}!  Dropping them...')
+        logger.warning(
+            f'classes unknown to model in test data: {unknown_classes}!  Dropping them...')
         test_df = test_df[known_idx]
 
     test_dl = learn.dls.test_dl(test_df)
@@ -79,3 +81,6 @@ def _discretize_if_necessary(test_df: pd.DataFrame, target_label: str, vocab: It
         test_df[target_label] = test_df[target_label].map(interval_label)
 
     return test_df
+
+
+Deploy = factory(_deploy)

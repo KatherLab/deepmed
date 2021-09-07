@@ -16,10 +16,10 @@ from fastai.vision.all import (
     aug_transforms, load_learner, TransformBlock, IntToFloatTensor, PILImage)
 from fastai.callback.tracker import TrackerCallback
 
-from .utils import log_defaults
+from .utils import log_defaults, factory
 from .types import GPUTask
 
-__all__ = ['train']
+__all__ = ['Train']
 
 
 @lru_cache(10000)
@@ -45,7 +45,7 @@ TileBlock = TransformBlock(type_tfms=get_tile, batch_tfms=IntToFloatTensor)
 
 
 @log_defaults
-def train(
+def _train(
         task: GPUTask, /,
         arch: Callable[[bool], nn.Module] = resnet18,
         batch_size: int = 64,
@@ -57,7 +57,7 @@ def train(
         metrics: Iterable[Callable] = [BalancedAccuracy()],
         patience: int = 3,
         monitor: str = 'valid_loss',
-        ) -> Optional[Learner]:
+) -> Optional[Learner]:
     """Trains a single model.
 
     Args:
@@ -100,10 +100,13 @@ def train(
 
     target_col_idx = train_df[~train_df.is_valid].columns.get_loc(target_label)
 
-    logger.debug(f'Class counts in training set: {train_df[~train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
-    logger.debug(f'Class counts in validation set: {train_df[train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
+    logger.debug(
+        f'Class counts in training set: {train_df[~train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
+    logger.debug(
+        f'Class counts in validation set: {train_df[train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
 
-    counts = train_df[~train_df.is_valid].iloc[:, target_col_idx].value_counts()
+    counts = train_df[~train_df.is_valid].iloc[:,
+                                               target_col_idx].value_counts()
 
     counts = torch.tensor([counts[k] for k in dls.vocab])
     weights = 1 - (counts / sum(counts))
@@ -117,7 +120,8 @@ def train(
         metrics=metrics)
 
     cbs = [
-        SaveModelCallback(monitor=monitor, fname=f'best_{monitor}', reset_on_fit=False),
+        SaveModelCallback(
+            monitor=monitor, fname=f'best_{monitor}', reset_on_fit=False),
         SaveModelCallback(every_epoch=True, with_opt=True, reset_on_fit=False),
         EarlyStoppingCallback(
             monitor=monitor, min_delta=0.001, patience=patience, reset_on_fit=False),
@@ -155,10 +159,15 @@ def _fit_from_checkpoint(
             cb.best = high_score
 
     # load newest model
-    name = max((result_dir/'models').glob('model_*.pth'), key=os.path.getctime).stem
+    name = max((result_dir/'models').glob('model_*.pth'),
+               key=os.path.getctime).stem
     learn.load(name, with_opt=True, strict=True)
 
     remaining_epochs = max_epochs - int(name.split('_')[1])
     logger.info(f'{remaining_epochs = }')
     learn.unfreeze()
-    learn.fit_one_cycle(remaining_epochs, slice(lr/100, lr), pct_start=.3, div=5., cbs=cbs)
+    learn.fit_one_cycle(remaining_epochs, slice(
+        lr/100, lr), pct_start=.3, div=5., cbs=cbs)
+
+
+Train = factory(_train)

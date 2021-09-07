@@ -11,8 +11,10 @@ from typing import Optional
 import matplotlib.pyplot as plt
 from PIL import Image
 
+from ..utils import factory
 
-def top_tiles(
+
+def _top_tiles(
         target_label: str, preds_df: pd.DataFrame, result_dir: Path,
         n_patients: int = 4, n_tiles: int = 4, patient_label: str = 'PATIENT',
         best_patients: bool = True, best_tiles: Optional[bool] = None,
@@ -83,3 +85,6 @@ def _generate_tiles_fn(
     tile_str = f'{"best" if best_tiles else "worst"}-{n_tiles}-tiles'
 
     return f'{target_label}_{class_}_{patient_str}_{tile_str}'
+
+
+TopTiles = factory(_top_tiles)

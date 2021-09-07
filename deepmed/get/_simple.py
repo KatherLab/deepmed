@@ -1,7 +1,7 @@
 from multiprocessing.managers import SyncManager
 import random
 import logging
-from typing import Iterable, Sequence, Iterator, Optional, Any, Union, Mapping, Callable
+from typing import Iterable, Sequence, Iterator, Optional, Any, Union, Mapping
 from pathlib import Path
 from numbers import Number
 from multiprocessing.synchronize import Semaphore
@@ -17,9 +17,10 @@ from ..evaluators.types import Evaluator
 from ..utils import log_defaults
 from .._experiment import Task, GPUTask, EvalTask
 
-from .._train import train
-from .._deploy import deploy
+from .._train import Train
+from .._deploy import Deploy
 from ..types import Trainer, Deployer
+from ..utils import factory
 
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,8 @@ def cohort(
         patient_label:  Label to merge the clinical and slide tables on.
         slidename_label:  Column of the slide table containing the slide names.
     """
-    tiles_path, clini_path, slide_path = Path(tiles_path), Path(clini_path), Path(slide_path)
+    tiles_path, clini_path, slide_path = Path(
+        tiles_path), Path(clini_path), Path(slide_path)
 
     dtype = {patient_label: str, slidename_label: str}
     clini_df = (
@@ -71,7 +73,7 @@ def cohort(
 
 
 @log_defaults
-def simple_run(
+def _simple_run(
         project_dir: Path,
         manager: SyncManager,
         target_label: str,
@@ -80,8 +82,8 @@ def simple_run(
         test_cohorts_df: Optional[pd.DataFrame] = None,
         patient_label: str = 'PATIENT',
         balance: bool = True,
-        train: Trainer = train,
-        deploy: Deployer = deploy,
+        train: Trainer = Train(),
+        deploy: Deployer = Deploy(),
         resample_each_epoch: bool = False,
         max_train_tile_num: int = 64,
         max_valid_tile_num: int = 256,
@@ -93,7 +95,7 @@ def simple_run(
         min_support: int = 10,
         evaluators: Iterable[Evaluator] = [],
         max_class_count: Optional[Mapping[str, int]] = None,
-        ) -> Iterator[Task]:
+) -> Iterator[Task]:
     """Creates tasks for a basic test-deploy procedure.
 
     This function will generate a single training and / or deployment task.  Due
@@ -138,7 +140,8 @@ def simple_run(
 
     eval_reqs = []
     if (preds_df_path := project_dir/'predictions.csv.zip').exists():
-        logger.warning(f'{preds_df_path} already exists, skipping training/deployment!')
+        logger.warning(
+            f'{preds_df_path} already exists, skipping training/deployment!')
 
         yield EvalTask(
             path=project_dir,
@@ -149,7 +152,8 @@ def simple_run(
     else:
         # training set
         if (train_df_path := project_dir/'training_set.csv.zip').exists():
-            logger.warning(f'{train_df_path} already exists, using old training set!')
+            logger.warning(
+                f'{train_df_path} already exists, using old training set!')
             train_df = pd.read_csv(train_df_path, dtype=str)
             train_df.is_valid = train_df.is_valid == 'True'
         elif train_cohorts_df is not None:
@@ -163,7 +167,8 @@ def simple_run(
         # testing set
         if (test_df_path := project_dir/'testing_set.csv.zip').exists():
             # load old testing set if it exists
-            logger.warning(f'{test_df_path} already exists, using old testing set!')
+            logger.warning(
+                f'{test_df_path} already exists, using old testing set!')
             test_df = pd.read_csv(test_df_path, dtype=str)
         elif test_cohorts_df is not None:
             logger.info(f'Searching for testing tiles')
@@ -205,16 +210,17 @@ def _generate_train_df(
         train_cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable, n_bins: int,
         min_support: int, logger, patient_label: str, valid_frac: float, seed: int,
         train_df_path: Path, balance: bool, max_class_count: Optional[Mapping[str, int]],
-        resample_each_epoch: bool, max_train_tile_num: int, max_valid_tile_num: int
-        ) -> pd.DataFrame:
+        resample_each_epoch: bool, max_train_tile_num: int, max_valid_tile_num: int) -> pd.DataFrame:
     train_cohorts_df = _prepare_cohorts(
         train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
 
     if train_cohorts_df[target_label].nunique() < 2:
-        logger.warning(f'Not enough classes for target {target_label}! skipping...')
+        logger.warning(
+            f'Not enough classes for target {target_label}! skipping...')
         return
 
-    logger.info(f'Training slide counts: {dict(train_cohorts_df[target_label].value_counts())}')
+    logger.info(
+        f'Training slide counts: {dict(train_cohorts_df[target_label].value_counts())}')
 
     # only use a subset of patients
     # (can be useful to compare behavior when training on different cohorts)
@@ -222,15 +228,19 @@ def _generate_train_df(
         patients_to_use = []
         for class_, count in max_class_count.items():
             class_patients = \
-                train_cohorts_df[train_cohorts_df[target_label] == class_][patient_label].unique()
-            patients_to_use.append(np.random.choice(class_patients, size=count, replace=False))
-        train_cohorts_df = train_cohorts_df[train_cohorts_df[patient_label].isin(np.concatenate(patients_to_use))]
+                train_cohorts_df[train_cohorts_df[target_label]
+                                 == class_][patient_label].unique()
+            patients_to_use.append(np.random.choice(
+                class_patients, size=count, replace=False))
+        train_cohorts_df = train_cohorts_df[train_cohorts_df[patient_label].isin(
+            np.concatenate(patients_to_use))]
 
     # split off validation set
     patients = train_cohorts_df.groupby(patient_label)[target_label].first()
     _, valid_patients = train_test_split(
         patients.index, test_size=valid_frac, stratify=patients)
-    train_cohorts_df['is_valid'] = train_cohorts_df[patient_label].isin(valid_patients)
+    train_cohorts_df['is_valid'] = train_cohorts_df[patient_label].isin(
+        valid_patients)
 
     logger.info(f'Searching for training tiles')
     train_df = _get_tiles(
@@ -250,8 +260,10 @@ def _generate_train_df(
     train_classes = train_df[target_label].unique()
     valid_df = valid_df[valid_df[target_label].isin(train_classes)]
 
-    logger.debug(f'Training tiles: {dict(train_df[target_label].value_counts())}')
-    logger.debug(f'Validation tiles: {dict(valid_df[target_label].value_counts())}')
+    logger.debug(
+        f'Training tiles: {dict(train_df[target_label].value_counts())}')
+    logger.debug(
+        f'Validation tiles: {dict(valid_df[target_label].value_counts())}')
 
     if balance:
         train_df = _balance_classes(
@@ -265,7 +277,7 @@ def _generate_train_df(
     train_df_path.parent.mkdir(parents=True, exist_ok=True)
     train_df.to_csv(train_df_path, index=False, compression='zip')
 
-    return train_df 
+    return train_df
 
 
 def _prepare_cohorts(
@@ -289,7 +301,8 @@ def _prepare_cohorts(
             cohorts_df[target_label] = cohorts_df[target_label].map(float)
             logger.info(f'Discretizing {target_label}')
             if n_bins is not None:
-                cohorts_df[target_label] = _discretize(cohorts_df[target_label].values, n_bins=n_bins)
+                cohorts_df[target_label] = _discretize(
+                    cohorts_df[target_label].values, n_bins=n_bins)
         except ValueError:
             pass
 
@@ -299,7 +312,8 @@ def _prepare_cohorts(
     cohorts_df = cohorts_df[~cohorts_df[target_label].isin(rare_classes)]
 
     # filter slides w/o tiles
-    slides_with_tiles = cohorts_df.slide_path.map(lambda x: bool(next(x.glob('*.jpg'), False)))
+    slides_with_tiles = cohorts_df.slide_path.map(
+        lambda x: bool(next(x.glob('*.jpg'), False)))
     cohorts_df = cohorts_df[slides_with_tiles]
 
     return cohorts_df
@@ -308,15 +322,16 @@ def _prepare_cohorts(
 def _discretize(xs: Sequence[Number], n_bins: int) -> Sequence[str]:
     """Returns a discretized version of a Sequence of continuous values."""
     unsqueezed = torch.tensor(xs).reshape(-1, 1)
-    est = preprocessing.KBinsDiscretizer(n_bins=n_bins, encode='ordinal').fit(unsqueezed)
-    labels = [f'[-inf,{est.bin_edges_[0][1]})', # label for smallest class
-                # labels for intermediate classes
-                *(f'[{lower},{upper})'
-                for lower, upper in zip(est.bin_edges_[0][1:], est.bin_edges_[0][2:-1])),
-                f'[{est.bin_edges_[0][-2]},inf)'] # label for largest class
+    est = preprocessing.KBinsDiscretizer(
+        n_bins=n_bins, encode='ordinal').fit(unsqueezed)
+    labels = [f'[-inf,{est.bin_edges_[0][1]})',  # label for smallest class
+              # labels for intermediate classes
+              *(f'[{lower},{upper})'
+                  for lower, upper in zip(est.bin_edges_[0][1:], est.bin_edges_[0][2:-1])),
+              f'[{est.bin_edges_[0][-2]},inf)']  # label for largest class
     label_map = dict(enumerate(labels))
     discretized = est.transform(unsqueezed).reshape(-1).astype(int)
-    return list(map(label_map.get, discretized)) # type: ignore
+    return list(map(label_map.get, discretized))  # type: ignore
 
 
 def _get_tiles(
@@ -332,10 +347,12 @@ def _get_tiles(
         tiles = random.sample(tiles, min(len(tiles), max_tile_num))
         tiles_df = pd.DataFrame(tiles, columns=['slide_path', 'tile_path'])
 
-        tiles_dfs.append(data.merge(tiles_df, on='slide_path').drop(columns='slide_path'))
+        tiles_dfs.append(data.merge(
+            tiles_df, on='slide_path').drop(columns='slide_path'))
 
     tiles_df = pd.concat(tiles_dfs).reset_index(drop=True)
-    logger.info(f'Found {len(tiles_df)} tiles for {len(tiles_df["PATIENT"].unique())} patients')
+    logger.info(
+        f'Found {len(tiles_df)} tiles for {len(tiles_df["PATIENT"].unique())} patients')
 
     return tiles_df
 
@@ -345,6 +362,10 @@ def _balance_classes(tiles_df: pd.DataFrame, target: str) -> pd.DataFrame:
     for label in tiles_df[target].unique():
         tiles_with_label = tiles_df[tiles_df[target] == label]
         to_keep = tiles_with_label.sample(n=smallest_class_count).index
-        tiles_df = tiles_df[(tiles_df[target] != label) | (tiles_df.index.isin(to_keep))]
+        tiles_df = tiles_df[(tiles_df[target] != label) |
+                            (tiles_df.index.isin(to_keep))]
 
     return tiles_df
+
+
+SimpleRun = factory(_simple_run)

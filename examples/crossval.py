@@ -13,23 +13,18 @@ cohorts_df = cohort(
 
 def main():
     do_experiment(
-        project_dir='multi_target_crossval',
-        get=partial(
-            get.multi_target,
-            get.crossval,
-            get.simple_run,
+        project_dir='crossval',
+        get=get.Crossval(
+            get.SimpleRun(),
             cohorts_df=cohorts_df,
-            target_labels=['ER Status By IHC'],
+            target_label='ER Status By IHC',
             max_train_tile_num=128,
             max_valid_tile_num=64,
             max_test_tile_num=256,
             valid_frac=.2,
-            multi_target_evaluators=[
-                partial(aggregate_stats, group_levels=[0, -1])],
-            crossval_evaluators=[aggregate_stats],
+            crossval_evaluators=[AggregateStats()],
             evaluators=[Grouped(auroc), Grouped(count)],
-            train=partial(
-                train,
+            train=Train(
                 batch_size=96,
                 max_epochs=4),
         ),

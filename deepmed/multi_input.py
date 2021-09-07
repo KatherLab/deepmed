@@ -23,10 +23,10 @@ from fastai.vision.all import (
     defaults, model_meta, store_attr, get_c, cast, apply_init, ifnone)
 from fastai.vision.learner import _add_norm, _default_meta
 
-from .utils import log_defaults
+from .utils import factory, log_defaults
 from .types import GPUTask
 
-__all__ = ['train']
+__all__ = ['Train']
 
 
 class MultiInputModel(nn.Module):
@@ -36,6 +36,7 @@ class MultiInputModel(nn.Module):
     classification.  This model extends a CNN by feeding this information into
     the in addition to the image features calcuated by the convolutional layers.
     """
+
     def __init__(
             self, arch, n_out: int, n_additional: int, n_in: int = 3, init=nn.init.kaiming_normal_,
             pretrained: bool = True, cut=None) -> None:
@@ -43,19 +44,21 @@ class MultiInputModel(nn.Module):
 
         meta = model_meta.get(arch, _default_meta)
         body = create_body(arch, n_in, pretrained, ifnone(cut, meta['cut']))
-        self.cnn_feature_extractor = nn.Sequential(body, AdaptiveConcatPool2d(), Flatten())
+        self.cnn_feature_extractor = nn.Sequential(
+            body, AdaptiveConcatPool2d(), Flatten())
 
         nf_body = num_features_model(nn.Sequential(*body.children()))
         # throw away pooling / flattenting layers
-        self.head = create_head(nf_body*2 + n_additional, n_out, concat_pool=False)[2:]
-        if init is not None: apply_init(self.head, init)
-
+        self.head = create_head(nf_body*2 + n_additional,
+                                n_out, concat_pool=False)[2:]
+        if init is not None:
+            apply_init(self.head, init)
 
     def forward(self, img, *tab):
         img_feats = self.cnn_feature_extractor(img)
 
         if tab:
-            stack_val = torch.stack((tab),axis=1)
+            stack_val = torch.stack((tab), axis=1)
             tensor_stack = cast(stack_val, torch.Tensor)
 
             features = torch.cat([img_feats, tensor_stack], dim=1)
@@ -65,7 +68,7 @@ class MultiInputModel(nn.Module):
 
 
 def multi_input_splitter(model, base_splitter):
-    #TODO HIER HABE ICH AUFGEHOERT
+    # TODO HIER HABE ICH AUFGEHOERT
     return [*base_splitter(model.cnn_feature_extractor)[:-1], params(model.head)]
 
 
@@ -85,28 +88,31 @@ def multi_input_learner(
         # learner args
         loss_func=None, opt_func=Adam, lr=defaults.lr, splitter=None, cbs=None, metrics=None,
         path=None, model_dir='models', wd=None, wd_bn_bias=False, train_bn=True,
-        moms=(0.95,0.85,0.95),
+        moms=(0.95, 0.85, 0.95),
         # other model args
         **kwargs):
     # adapted from fastai.vision.learner.cnn_learner
 
     meta = model_meta.get(arch, _default_meta)
-    if normalize: _add_norm(dls, meta, pretrained)
+    if normalize:
+        _add_norm(dls, meta, pretrained)
 
-    if n_out is None: n_out = L(get_c(dls))[-1]
+    if n_out is None:
+        n_out = L(get_c(dls))[-1]
     assert n_out, \
         "`n_out` is not defined, and could not be inferred from data, set `dls.c` or pass `n_out`"
     model = MultiInputModel(
         arch, n_out=n_out, n_additional=n_additional, pretrained=pretrained, **kwargs)
 
-    splitter=ifnone(splitter, meta['split'])
-    splitter=partial(multi_input_splitter, base_splitter=splitter)
+    splitter = ifnone(splitter, meta['split'])
+    splitter = partial(multi_input_splitter, base_splitter=splitter)
     learn = Learner(
         dls=dls, model=model, loss_func=loss_func, opt_func=opt_func, lr=lr, splitter=splitter,
         cbs=cbs, metrics=metrics, path=path, model_dir=model_dir, wd=wd, wd_bn_bias=wd_bn_bias,
         train_bn=train_bn, moms=moms)
 
-    if pretrained: learn.freeze()
+    if pretrained:
+        learn.freeze()
 
     # keep track of args for loggers
     store_attr('arch, normalize, n_out, pretrained', self=learn, **kwargs)
@@ -121,13 +127,13 @@ class Category:
     @property
     def block(self) -> CategoryBlock:
         return CategoryBlock(vocab=self, sort=False, add_na=True)
-    
+
     def __str__(self) -> str:
         return self.name
 
 
 @log_defaults
-def train(
+def _train(
         task: GPUTask, /,
         arch: Callable[[bool], nn.Module] = resnet18,
         batch_size: int = 64,
@@ -140,8 +146,7 @@ def train(
         patience: int = 3,
         monitor: str = 'valid_loss',
         conts: Iterable[str] = [],
-        cats: Iterable[Union[str, Category]] = [],
-        ) -> Optional[Learner]:
+        cats: Iterable[Union[str, Category]] = []) -> Optional[Learner]:
     """Trains a single model.
 
     Args:
@@ -177,12 +182,13 @@ def train(
 
     for col in conts:
         train_df[col] = train_df[col].astype(float)
-        
+
     conts = [cont for cont in conts if cont != target_label]
     cats = [cat for cat in cats if str(cat) != target_label]
 
     cont_blocks = [
-        TransformBlock(type_tfms=[Normalize(mean=mean, std=std), RegressionSetup()])
+        TransformBlock(type_tfms=[Normalize(
+            mean=mean, std=std), RegressionSetup()])
         for label in conts
         for mean, std in [(train_df[label].mean(), train_df[label].std())]]
     cat_blocks = [
@@ -216,7 +222,8 @@ def train(
         'Class counts in validation set: '
         f'{dict(train_df[train_df.is_valid].iloc[:, target_col_idx].value_counts())}')
 
-    counts = train_df[~train_df.is_valid].iloc[:, target_col_idx].value_counts()
+    counts = train_df[~train_df.is_valid].iloc[:,
+                                               target_col_idx].value_counts()
 
     vocab = dls.vocab if isinstance(dls.vocab, CategoryMap) else dls.vocab[-1]
     counts = torch.tensor([counts[k] for k in vocab])
@@ -232,7 +239,8 @@ def train(
         metrics=metrics)
 
     cbs = [
-        SaveModelCallback(monitor=monitor, fname=f'best_{monitor}', reset_on_fit=False),
+        SaveModelCallback(
+            monitor=monitor, fname=f'best_{monitor}', reset_on_fit=False),
         SaveModelCallback(every_epoch=True, with_opt=True, reset_on_fit=False),
         EarlyStoppingCallback(
             monitor=monitor, min_delta=0.001, patience=patience, reset_on_fit=False),
@@ -270,10 +278,15 @@ def _fit_from_checkpoint(
             cb.best = high_score
 
     # load newest model
-    name = max((result_dir/'models').glob('model_*.pth'), key=os.path.getctime).stem
+    name = max((result_dir/'models').glob('model_*.pth'),
+               key=os.path.getctime).stem
     learn.load(name, with_opt=True, strict=True)
 
     remaining_epochs = max_epochs - int(name.split('_')[1])
     logger.info(f'{remaining_epochs = }')
     learn.unfreeze()
-    learn.fit_one_cycle(remaining_epochs, slice(lr/100, lr), pct_start=.3, div=5., cbs=cbs)
+    learn.fit_one_cycle(remaining_epochs, slice(
+        lr/100, lr), pct_start=.3, div=5., cbs=cbs)
+
+
+Train = factory(_train)

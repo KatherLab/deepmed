@@ -15,7 +15,7 @@ class TestExamples(unittest.TestCase):
         examples = [
             'multi_target_train.py',
             'multi_target_deploy.py',
-            'multi_target_crossval.py',
+            'crossval.py',
             'subgroup.py',
         ]
         example_path = Path('examples').absolute()
