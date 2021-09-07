@@ -68,7 +68,7 @@ def crossval(
     project_dir.mkdir(parents=True, exist_ok=True)
 
     if (folds_path := project_dir/'folds.csv.zip').exists():
-        folded_df = pd.read_csv(folds_path)
+        folded_df = pd.read_csv(folds_path, dtype=str) # dtype=str
         folded_df.slide_path = folded_df.slide_path.map(Path)
     else:
         cohorts_df = _prepare_cohorts(
