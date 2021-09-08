@@ -25,7 +25,7 @@ def main():
         get=get.MultiTarget(
             get.SimpleRun(),
             test_cohorts_df=test_cohorts_df,
-            target_labels=['ER Status By IHC'],
+            target_labels=['ER Status By IHC', 'TCGA Subtype'],
             max_test_tile_num=512,
             evaluators=[Grouped(auroc), Grouped(F1()), Grouped(count)],
             multi_target_evaluators=[AggregateStats(label='target')],
@@ -33,7 +33,8 @@ def main():
                 project_dir=project_dir,
                 training_project_dir='multi_target_train'),
         ),
-        devices={'cuda:0': 4}
+        devices={'cuda:0': 4},
+        num_concurrent_tasks=0,
     )
 
 

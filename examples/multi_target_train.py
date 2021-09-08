@@ -18,7 +18,7 @@ def main():
         get=get.MultiTarget(    # train for multiple targets
             get.SimpleRun(),
             train_cohorts_df=train_cohorts_df,
-            target_labels=['ER Status By IHC'],  # target labels to train for
+            target_labels=['ER Status By IHC', 'TCGA Subtype'],  # target labels to train for
             max_train_tile_num=128,  # maximum number of tiles per patient to train with
             max_valid_tile_num=128,  # maximum number of tiles per patient to validate with
             # amount of data to use as validation set (for early stopping)
