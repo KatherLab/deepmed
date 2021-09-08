@@ -17,6 +17,7 @@ class TestExamples(unittest.TestCase):
             'multi_target_deploy.py',
             'crossval.py',
             'subgroup.py',
+            'parameterize.py',
         ]
         example_path = Path('examples').absolute()
 

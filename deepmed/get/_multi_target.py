@@ -25,6 +25,8 @@ def _multi_target(
         multi_target_evaluators: Iterable[Evaluator] = [],
         target_kwargs: Mapping[str, Mapping[str, Any]] = {},
         **kwargs) -> Iterator[Task]:
+    import warnings
+    warnings.warn('MultiTarget is being deprecated.  Use Parameterize instead.', DeprecationWarning)
     """Adapts a `TaskGetter` into a multi-target one.
 
     Args:

@@ -5,6 +5,7 @@ import random
 from typing import Callable, Iterable, Optional, List
 from pathlib import Path
 from functools import lru_cache
+from dataclasses import dataclass, field
 
 import torch
 import pandas as pd
@@ -16,7 +17,6 @@ from fastai.vision.all import (
     aug_transforms, load_learner, TransformBlock, IntToFloatTensor, PILImage)
 from fastai.callback.tracker import TrackerCallback
 
-from .utils import log_defaults, factory
 from .types import GPUTask
 
 __all__ = ['Train']
@@ -44,20 +44,8 @@ def get_tile(tile_path) -> PILImage:
 TileBlock = TransformBlock(type_tfms=get_tile, batch_tfms=IntToFloatTensor)
 
 
-@log_defaults
-def _train(
-        task: GPUTask, /,
-        arch: Callable[[bool], nn.Module] = resnet18,
-        batch_size: int = 64,
-        max_epochs: int = 32,
-        lr: float = 2e-3,
-        num_workers: int = 0,
-        tfms: Optional[Callable] = aug_transforms(
-            flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224),
-        metrics: Iterable[Callable] = [BalancedAccuracy()],
-        patience: int = 3,
-        monitor: str = 'valid_loss',
-) -> Optional[Learner]:
+@dataclass
+class _Train:
     """Trains a single model.
 
     Args:
@@ -79,64 +67,81 @@ def _train(
     If the training is interrupted, it will be continued from the last model
     checkpoint.
     """
-    logger = logging.getLogger(str(task.path))
+    arch: Callable[[bool], nn.Module] = resnet18
+    batch_size: int = 64
+    max_epochs: int = 32
+    lr: float = 2e-3
+    num_workers: int = 0
+    tfms: Optional[Callable] = field(
+        default_factory=lambda: aug_transforms(
+            flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224))
+    metrics: Iterable[Callable] = field(
+        default_factory=lambda: [BalancedAccuracy()])
+    patience: int = 3
+    monitor: str = 'valid_loss'
 
-    if (model_path := task.path/'export.pkl').exists():
-        logger.warning(f'{model_path} already exists! using old model...')
-        return load_learner(model_path)
+    def __call__(self, task: GPUTask) -> Optional[Learner]:
+        logger = logging.getLogger(str(task.path))
 
-    target_label, train_df, result_dir = task.target_label, task.train_df, task.path
+        if (model_path := task.path/'export.pkl').exists():
+            logger.warning(f'{model_path} already exists! using old model...')
+            return load_learner(model_path)
 
-    if train_df is None:
-        logger.debug('Cannot train: no training set given!')
-        return None
+        target_label, train_df, result_dir = task.target_label, task.train_df, task.path
 
-    dblock = DataBlock(blocks=(TileBlock, CategoryBlock),
-                       get_x=ColReader('tile_path'),
-                       get_y=ColReader(target_label),
-                       splitter=ColSplitter('is_valid'),
-                       batch_tfms=tfms)
-    dls = dblock.dataloaders(train_df, bs=batch_size, num_workers=num_workers)
+        if train_df is None:
+            logger.debug('Cannot train: no training set given!')
+            return None
 
-    target_col_idx = train_df[~train_df.is_valid].columns.get_loc(target_label)
+        dblock = DataBlock(blocks=(TileBlock, CategoryBlock),
+                           get_x=ColReader('tile_path'),
+                           get_y=ColReader(target_label),
+                           splitter=ColSplitter('is_valid'),
+                           batch_tfms=self.tfms)
+        dls = dblock.dataloaders(
+            train_df, bs=self.batch_size, num_workers=self.num_workers)
 
-    logger.debug(
-        f'Class counts in training set: {train_df[~train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
-    logger.debug(
-        f'Class counts in validation set: {train_df[train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
+        target_col_idx = train_df[~train_df.is_valid].columns.get_loc(
+            target_label)
 
-    counts = train_df[~train_df.is_valid].iloc[:,
-                                               target_col_idx].value_counts()
+        logger.debug(
+            f'Class counts in training set: {train_df[~train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
+        logger.debug(
+            f'Class counts in validation set: {train_df[train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
 
-    counts = torch.tensor([counts[k] for k in dls.vocab])
-    weights = 1 - (counts / sum(counts))
+        counts = train_df[~train_df.is_valid].iloc[:,
+                                                   target_col_idx].value_counts()
 
-    logger.debug(f'{dls.vocab = }, {weights = }')
+        counts = torch.tensor([counts[k] for k in dls.vocab])
+        weights = 1 - (counts / sum(counts))
 
-    learn = cnn_learner(
-        dls, arch,
-        path=result_dir,
-        loss_func=CrossEntropyLossFlat(weight=weights.cuda()),
-        metrics=metrics)
+        logger.debug(f'{dls.vocab = }, {weights = }')
 
-    cbs = [
-        SaveModelCallback(
-            monitor=monitor, fname=f'best_{monitor}', reset_on_fit=False),
-        SaveModelCallback(every_epoch=True, with_opt=True, reset_on_fit=False),
-        EarlyStoppingCallback(
-            monitor=monitor, min_delta=0.001, patience=patience, reset_on_fit=False),
-        CSVLogger(append=True)]
+        learn = cnn_learner(
+            dls, self.arch,
+            path=result_dir,
+            loss_func=CrossEntropyLossFlat(weight=weights.cuda()),
+            metrics=self.metrics)
 
-    if (result_dir/'models'/f'best_{monitor}.pth').exists():
-        _fit_from_checkpoint(
-            learn=learn, result_dir=result_dir, lr=lr/2, max_epochs=max_epochs, cbs=cbs,
-            monitor=monitor, logger=logger)
-    else:
-        learn.fine_tune(epochs=max_epochs, base_lr=lr, cbs=cbs)
+        cbs = [
+            SaveModelCallback(
+                monitor=self.monitor, fname=f'best_{self.monitor}', reset_on_fit=False),
+            SaveModelCallback(every_epoch=True, with_opt=True,
+                              reset_on_fit=False),
+            EarlyStoppingCallback(
+                monitor=self.monitor, min_delta=0.001, patience=self.patience, reset_on_fit=False),
+            CSVLogger(append=True)]
 
-    learn.export()
-    shutil.rmtree(result_dir/'models')
-    return load_learner(result_dir/'export.pkl')
+        if (result_dir/'models'/f'best_{self.monitor}.pth').exists():
+            _fit_from_checkpoint(
+                learn=learn, result_dir=result_dir, lr=self.lr/2, max_epochs=self.max_epochs, cbs=cbs,
+                monitor=self.monitor, logger=logger)
+        else:
+            learn.fine_tune(epochs=self.max_epochs, base_lr=self.lr, cbs=cbs)
+
+        learn.export()
+        shutil.rmtree(result_dir/'models')
+        return load_learner(result_dir/'export.pkl')
 
 
 def _fit_from_checkpoint(
@@ -168,4 +173,12 @@ def _fit_from_checkpoint(
         lr/100, lr), pct_start=.3, div=5., cbs=cbs)
 
 
-Train = factory(_train)
+class Train(_Train):
+    def __init__(self, **kwargs) -> None:
+        self._non_default_attrs = kwargs
+        super().__init__(**kwargs)
+
+    def __repr__(self) -> str:
+        return (
+            f'{self.__class__.__name__}'
+            f'({", ".join(f"{k}={v!r}" for k, v in sorted(self._non_default_attrs.items()))})')
