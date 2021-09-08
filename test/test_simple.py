@@ -25,8 +25,8 @@ class TestSeperateTrainAndDeploy(unittest.TestCase):
                     train_cohorts_df=self.cohorts_df,
                     target_label='ER Status By IHC',
                     max_train_tile_num=4,
-                    max_valid_tile_num=4),
-                train=Train(max_epochs=1),
+                    max_valid_tile_num=4,
+                    train=Train(max_epochs=1)),
                 logfile=None)
 
             train_df = pd.read_csv(Path(training_dir)/'training_set.csv.zip')
@@ -40,14 +40,13 @@ class TestSeperateTrainAndDeploy(unittest.TestCase):
 
                 do_experiment(
                     project_dir=testing_dir,
-                    get=partial(
-                        get.simple_run,
+                    get=get.SimpleRun(
                         test_cohorts_df=self.cohorts_df,
                         target_label='ER Status By IHC',
-                        max_test_tile_num=max_test_tile_num),
-                    train=Load(
-                        project_dir=Path(testing_dir),
-                        training_project_dir=Path(training_dir)),
+                        max_test_tile_num=max_test_tile_num,
+                        train=Load(
+                            project_dir=Path(testing_dir),
+                            training_project_dir=Path(training_dir))),
                     logfile=None)
 
                 # add some evaluation
@@ -69,6 +68,37 @@ class TestSeperateTrainAndDeploy(unittest.TestCase):
                     stats_df[('count', 'nan')]['Positive'], max_test_tile_num*76)
                 self.assertEqual(
                     stats_df[('count', 'nan')]['Negative'], max_test_tile_num*24)
+
+
+class TestDiscretization(unittest.TestCase):
+    def test_class(self):
+        path = untar_data(
+            'https://katherlab-datasets.s3.eu-central-1.amazonaws.com/tiny-test-data.zip')
+        cohorts_df = cohort(
+            tiles_path=path/'tiles',
+            clini_path=path/'clini.csv',
+            slide_path=path/'slide.csv')
+
+        # train a model
+        with TemporaryDirectory() as project_dir:
+            do_experiment(
+                project_dir=project_dir,
+                get=get.SimpleRun(
+                    train_cohorts_df=cohorts_df,
+                    test_cohorts_df=cohorts_df,
+                    target_label='TMB (nonsynonymous)',
+                    evaluators=[Grouped(count)],
+                    n_bins=3,
+                    train=Train(max_epochs=1)),
+                logfile=None)
+
+            stats_df = pd.read_csv(
+                Path(project_dir)/'stats.csv', index_col=0, header=[0, 1])
+            self.assertEqual(stats_df[('count', 'PATIENT')]['[-inf,0.7)'], 31)
+            self.assertEqual(stats_df[('count', 'PATIENT')
+                                      ]['[0.7,1.43333333333)'], 34)
+            self.assertEqual(stats_df[('count', 'PATIENT')
+                                      ]['[1.43333333333,inf)'], 34)
 
 
 class TestEvaluators(unittest.TestCase):
