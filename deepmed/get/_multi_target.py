@@ -50,6 +50,7 @@ def _multi_target(
 
         for task in get(
                 *args, project_dir=target_dir, manager=manager, target_label=target_label,
+                # overwrite default ``kwargs``` w/ target-specific ones, if they were given
                 **({**kwargs, **target_kwargs[target_label]}
                    if target_label in kwargs
                    else kwargs)):

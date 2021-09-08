@@ -14,7 +14,7 @@ from tqdm import tqdm
 import numpy as np
 
 from ..evaluators.types import Evaluator
-from ..utils import log_defaults
+from ..utils import is_continuous, log_defaults
 from .._experiment import Task, GPUTask, EvalTask
 
 from .._train import Train
@@ -90,7 +90,7 @@ def _simple_run(
         max_test_tile_num: int = 512,
         seed: int = 0,
         valid_frac: float = .2,
-        n_bins: int = 2,
+        n_bins: Optional[int] = 2,
         na_values: Iterable[Any] = [],
         min_support: int = 10,
         evaluators: Iterable[Evaluator] = [],
@@ -288,7 +288,8 @@ def _prepare_cohorts(
     Discretizes continuous targets and drops classes for which only few examples
     are present.
     """
-    cohorts_df[target_label] = cohorts_df[target_label].str.strip()
+    if not is_continuous(cohorts_df[target_label]):
+        cohorts_df[target_label] = cohorts_df[target_label].str.strip()
 
     # remove N/As
     cohorts_df = cohorts_df[cohorts_df[target_label].notna()]
