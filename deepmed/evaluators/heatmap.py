@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from matplotlib.patches import Patch
 from scipy import interpolate
-import regex as re
+import re
 import logging
 from pathlib import Path
 import matplotlib.pyplot as plt

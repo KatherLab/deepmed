@@ -7,26 +7,27 @@ from typing_extensions import Protocol
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 
-from .._experiment import Run, EvalRun
+from .._experiment import Task, EvalTask
 from ._simple import _prepare_cohorts
 from ..utils import log_defaults
 from ..get import Evaluator
 
 
-class CrossvalBaseRunGetter(Protocol):
-    """The signature of a run getter which can be modified by ``crossval``."""
+class CrossvalBaseTaskGetter(Protocol):
+    """The signature of a task getter which can be modified by ``crossval``."""
     def __call__(
             self, *args,
             project_dir: Path, manager: SyncManager, target_label: str,
             train_cohorts_df: pd.DataFrame, test_cohorts_df: pd.DataFrame, min_support: int,
             **kwargs) \
-            -> Iterator[Run]:
+            -> Iterator[Task]:
         ...
 
 
 @log_defaults
 def crossval(
-        get: CrossvalBaseRunGetter,
+        get: CrossvalBaseTaskGetter,
+        *args,
         project_dir: Path,
         target_label: str,
         cohorts_df: pd.DataFrame,
@@ -38,14 +39,14 @@ def crossval(
         min_support: int = 10,
         patient_label: str = 'PATIENT',
         crossval_evaluators: Iterable[Evaluator] = [],
-        *args, **kwargs) \
-        -> Iterator[Run]:
-    """Generates cross validation runs for a single target.
+        **kwargs) \
+        -> Iterator[Task]:
+    """Generates cross validation tasks for a single target.
 
     Args:
         get:  Getter to perform cross-validation with.
         project_dir:  Path to save project data to.
-        cohorts_df:  The cohorts to perform cross-validation on.
+        train_cohorts_df:  The cohorts to perform cross-validation on.
         valid_frac:  The fraction of patients which will be reserved for
             validation during training.
         folds:  Number of subsets to split the training data into.
@@ -58,7 +59,7 @@ def crossval(
         *kwargs:  Keyword arguments to pass to ``get``.
 
     Yields:
-        A run for each fold of the cross-validation.
+        A task for each fold of the cross-validation.
 
     For each of the folds a new subdirectory will be created.  Each of the folds
     will be generated in a stratified fashion, meaning that the cohorts' class
@@ -86,10 +87,10 @@ def crossval(
         folded_df.to_csv(folds_path, compression='zip')
 
     # accumulate first to ensure training / testing set data is saved
-    fold_runs = (
-        run
+    fold_tasks = (
+        task
         for fold in sorted(folded_df.fold.unique())
-        for run in get( # type: ignore
+        for task in get( # type: ignore
             *args,
             project_dir=project_dir/f'fold_{fold}',
             target_label=target_label,
@@ -100,13 +101,13 @@ def crossval(
             **kwargs)
     )
     requirements = []
-    for run in fold_runs:
-        yield run
-        requirements.append(run.done)
+    for task in fold_tasks:
+        yield task
+        requirements.append(task.done)
 
-    yield EvalRun(
-        directory=project_dir,
-        target=target_label,
+    yield EvalTask(
+        path=project_dir,
+        target_label=target_label,
         requirements=requirements,
         evaluators=crossval_evaluators,
         done=manager.Event())

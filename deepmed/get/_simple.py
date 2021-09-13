@@ -4,6 +4,7 @@ import logging
 from typing import Iterable, Sequence, Iterator, Optional, Any, Union, Mapping, Callable
 from pathlib import Path
 from numbers import Number
+from multiprocessing.synchronize import Semaphore
 
 import torch
 import pandas as pd
@@ -14,7 +15,11 @@ import numpy as np
 
 from ..evaluators.types import Evaluator
 from ..utils import log_defaults
-from .._experiment import Run, GPURun, EvalRun
+from .._experiment import Task, GPUTask, EvalTask
+
+from .._train import train
+from .._deploy import deploy
+from ..types import Trainer, Deployer
 
 
 logger = logging.getLogger(__name__)
@@ -28,7 +33,7 @@ def cohort(
         patient_label: str = 'PATIENT', slidename_label: str = 'FILENAME') \
         -> pd.DataFrame:
     """Creates a cohort df from a slide and a clini table.
-    
+
     Args:
         tiles_path:  The path in which the slides' tiles are stored.  Each
             slides' tiles have to be stored in a directory in ``tiles_path``
@@ -44,15 +49,19 @@ def cohort(
     """
     tiles_path, clini_path, slide_path = Path(tiles_path), Path(clini_path), Path(slide_path)
 
+    dtype = {patient_label: str, slidename_label: str}
     clini_df = (
-        pd.read_csv(clini_path, dtype=str) if clini_path.suffix == '.csv'
-        else pd.read_excel(clini_path, dtype=str))
+        pd.read_csv(clini_path, dtype=dtype) if clini_path.suffix == '.csv'
+        else pd.read_excel(clini_path, dtype=dtype))
     slide_df = (
-        pd.read_csv(slide_path, dtype=str) if slide_path.suffix == '.csv'
-        else pd.read_excel(slide_path, dtype=str))
+        pd.read_csv(slide_path, dtype=dtype) if slide_path.suffix == '.csv'
+        else pd.read_excel(slide_path, dtype=dtype))
 
     cohort_df = clini_df.merge(slide_df, on=patient_label)
     cohort_df['slide_path'] = tiles_path/cohort_df[slidename_label]
+
+    assert cohort_df.slide_path.map(Path.exists).any(), \
+        f'none of the slide paths for "{slide_path}" exist!'
 
     logger.debug(f'#slides in {slide_path}: {len(slide_df)}')
     logger.debug(f'#patients in {clini_path}: {len(clini_df)}')
@@ -66,10 +75,13 @@ def simple_run(
         project_dir: Path,
         manager: SyncManager,
         target_label: str,
+        capacities: Mapping[Union[int, str], Semaphore],
         train_cohorts_df: Optional[pd.DataFrame] = None,
         test_cohorts_df: Optional[pd.DataFrame] = None,
         patient_label: str = 'PATIENT',
         balance: bool = True,
+        train: Trainer = train,
+        deploy: Deployer = deploy,
         resample_each_epoch: bool = False,
         max_train_tile_num: int = 64,
         max_valid_tile_num: int = 256,
@@ -81,12 +93,12 @@ def simple_run(
         min_support: int = 10,
         evaluators: Iterable[Evaluator] = [],
         max_class_count: Optional[Mapping[str, int]] = None,
-        ) -> Iterator[Run]:
-    """Creates runs for a basic test-deploy procedure.
+        ) -> Iterator[Task]:
+    """Creates tasks for a basic test-deploy procedure.
 
-    This function will generate a single training and / or deployment run.  Due
+    This function will generate a single training and / or deployment task.  Due
     to large in-patient similarities in slides it may be useful to only sample
-    a limited number of tiles will from each patient.  The run will have:
+    a limited number of tiles will from each patient.  The task will have:
 
     -   A training set, if ``train_cohorts`` is not empty. The training set will
         be balanced in such a way that each class is represented with a number
@@ -119,8 +131,8 @@ def simple_run(
             to be included in training.  Classes with less support are dropped.
 
     Yields:
-        A run to train and / or deploy a model on the given training and testing
-        data as well as an evaluation run.
+        A task to train and / or deploy a model on the given training and
+        testing data as well as an evaluation task.
     """
     logger = logging.getLogger(str(project_dir))
 
@@ -128,9 +140,9 @@ def simple_run(
     if (preds_df_path := project_dir/'predictions.csv.zip').exists():
         logger.warning(f'{preds_df_path} already exists, skipping training/deployment!')
 
-        yield EvalRun(
-            directory=project_dir,
-            target=target_label,
+        yield EvalTask(
+            path=project_dir,
+            target_label=target_label,
             done=manager.Event(),
             requirements=[],
             evaluators=evaluators)
@@ -156,14 +168,9 @@ def simple_run(
         elif test_cohorts_df is not None:
             logger.info(f'Searching for testing tiles')
             test_cohorts_df = _prepare_cohorts(
-                test_cohorts_df, target_label, na_values, n_bins, min_support=0, logger=logger)
+                test_cohorts_df, target_label, na_values, n_bins=None, min_support=0, logger=logger)
 
-            # restrict testing set to classes present in training set
-            if train_df is not None:
-                train_classes = train_df[target_label].unique()
-                test_cohorts_df = test_cohorts_df[test_cohorts_df[target_label].isin(train_classes)]
-
-            logger.info(f'Testing slide counts: {dict(test_cohorts_df[target_label].value_counts())}')
+            logger.info(f'Testing slide counts: {len(test_cohorts_df)}')
             test_df = _get_tiles(
                 cohorts_df=test_cohorts_df, max_tile_num=max_test_tile_num, seed=seed, logger=logger)
 
@@ -174,17 +181,21 @@ def simple_run(
 
         gpu_done = manager.Event()
         eval_reqs.append(gpu_done)
-        yield GPURun(
-            directory=project_dir,
-            target=target_label,
+        yield GPUTask(
+            path=project_dir,
+            target_label=target_label,
+            requirements=[],
+            done=gpu_done,
+            train=train,
+            deploy=deploy,
             train_df=train_df,
             test_df=test_df,
-            done=gpu_done)
+            capacities=capacities)
 
         if test_df is not None:
-            yield EvalRun(
-                directory=project_dir,
-                target=target_label,
+            yield EvalTask(
+                path=project_dir,
+                target_label=target_label,
                 done=manager.Event(),
                 requirements=eval_reqs,
                 evaluators=evaluators)
@@ -258,8 +269,8 @@ def _generate_train_df(
 
 
 def _prepare_cohorts(
-        cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable[str], n_bins: int,
-        min_support: int, logger: logging.Logger) -> pd.DataFrame:
+        cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable[str],
+        n_bins: Optional[int], min_support: int, logger: logging.Logger) -> pd.DataFrame:
     """Preprocesses the cohorts.
 
     Discretizes continuous targets and drops classes for which only few examples
@@ -277,7 +288,8 @@ def _prepare_cohorts(
         try:
             cohorts_df[target_label] = cohorts_df[target_label].map(float)
             logger.info(f'Discretizing {target_label}')
-            cohorts_df[target_label] = _discretize(cohorts_df[target_label].values, n_bins=n_bins)
+            if n_bins is not None:
+                cohorts_df[target_label] = _discretize(cohorts_df[target_label].values, n_bins=n_bins)
         except ValueError:
             pass
 
@@ -301,7 +313,7 @@ def _discretize(xs: Sequence[Number], n_bins: int) -> Sequence[str]:
                 # labels for intermediate classes
                 *(f'[{lower},{upper})'
                 for lower, upper in zip(est.bin_edges_[0][1:], est.bin_edges_[0][2:-1])),
-                f'[{est.bin_edges_[0][-2]}, inf)'] # label for largest class
+                f'[{est.bin_edges_[0][-2]},inf)'] # label for largest class
     label_map = dict(enumerate(labels))
     discretized = est.transform(unsqueezed).reshape(-1).astype(int)
     return list(map(label_map.get, discretized)) # type: ignore

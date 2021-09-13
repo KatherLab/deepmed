@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
+from deepmed.evaluators.aggregate_stats import aggregate_stats
 from deepmed.experiment_imports import *
+
 
 # this is a tiny toy data set; do not expect any good results from this
 cohort_path = untar_data(
@@ -11,29 +13,34 @@ cohorts_df = cohort(
     slide_path=cohort_path/'slide.csv')
 
 
+def subgrouper(x: pd.Series):
+    if x['Diagnosis Age'] > 50:
+        return 'old'
+    elif x['Diagnosis Age'] <= 50:
+        return 'young'
+    else:
+        return None
+
+
 def main():
     do_experiment(
-        project_dir='multi_target_crossval',
+        project_dir='subgroup',
         get=partial(
-            get.multi_target,
-            get.crossval,
+            get.subgroup,
             get.simple_run,
-            cohorts_df=cohorts_df,
-            target_labels=['ER Status By IHC'],
-            max_train_tile_num=128,
-            max_valid_tile_num=64,
-            max_test_tile_num=256,
+            train_cohorts_df=cohorts_df,
+            test_cohorts_df=cohorts_df,
+            target_label='ER Status By IHC',
+            subgrouper=subgrouper,
             valid_frac=.2,
-            multi_target_evaluators=[
-                partial(aggregate_stats, group_levels=[0, -1])],
-            crossval_evaluators=[aggregate_stats],
             evaluators=[Grouped(auroc), Grouped(count)],
+            subgroup_evaluators=[aggregate_stats],
             train=partial(
                 train,
-                batch_size=96,
-                max_epochs=4),
+                max_epochs=1),
         ),
-        devices={'cuda:0': 4})
+        devices={'cuda:0': 4}
+    )
 
 
 if __name__ == '__main__':

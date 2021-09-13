@@ -2,8 +2,9 @@ import inspect
 import logging
 from typing import Callable, Any
 from functools import wraps, cached_property
+import pandas as pd
 
-__all__ = ['log_defaults', 'Lazy']
+__all__ = ['log_defaults', 'Lazy', 'is_continuous']
 
 
 def log_defaults(func):
@@ -49,3 +50,7 @@ class Lazy:
 
     def __setitem__(self, k, v):
         self._val[k] = v
+
+
+def is_continuous(series: pd.Series) -> bool:
+    return series.dtype == float
