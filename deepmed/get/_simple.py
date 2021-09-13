@@ -149,8 +149,9 @@ def simple_run(
     else:
         # training set
         if (train_df_path := project_dir/'training_set.csv.zip').exists():
-            logger.warning(f'{train_df_path} already exists, using old training set!')
-            train_df = pd.read_csv(train_df_path, dtype=str)
+            logger.warning(
+                f'{train_df_path} already exists, using old training set!')
+            train_df = pd.read_csv(train_df_path)
             train_df.is_valid = train_df.is_valid == 'True'
         elif train_cohorts_df is not None:
             train_df = _generate_train_df(
@@ -163,8 +164,9 @@ def simple_run(
         # testing set
         if (test_df_path := project_dir/'testing_set.csv.zip').exists():
             # load old testing set if it exists
-            logger.warning(f'{test_df_path} already exists, using old testing set!')
-            test_df = pd.read_csv(test_df_path, dtype=str)
+            logger.warning(
+                f'{test_df_path} already exists, using old testing set!')
+            test_df = pd.read_csv(test_df_path)
         elif test_cohorts_df is not None:
             logger.info(f'Searching for testing tiles')
             test_cohorts_df = _prepare_cohorts(
