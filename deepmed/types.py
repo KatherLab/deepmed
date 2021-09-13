@@ -130,9 +130,6 @@ class GPUTask(Task):
                 with torch.cuda.device(device):
                     learn = self.train(self)
                     break
-            except Exception as e:
-                logger.exception(e)
-                raise e
             finally:
                 capacity.release()
 

@@ -34,7 +34,6 @@ def main():
                 training_project_dir='multi_target_train'),
         ),
         devices={'cuda:0': 4},
-        num_concurrent_tasks=0,
     )
 
 
