@@ -13,7 +13,7 @@ from ..utils import factory
 
 def _aggregate_stats(
         _target_label, _preds_df, path: Path, /, label: Optional[str] = None,
-        over: Optional[Iterable[Union[str, int]]] = None, conf: float=.95) -> pd.DataFrame:
+        over: Optional[Iterable[Union[str, int]]] = None, conf: float = .95) -> pd.DataFrame:
     """Accumulates stats from subdirectories.
 
     Args:
@@ -70,19 +70,24 @@ def _aggregate_stats(
         # confidence intervals for the rest
         count_labels = [col for col in stats_df.columns
                         if 'count' in (col[0] if isinstance(col, tuple) else col)]
-        metric_labels = [
-            col for col in stats_df.columns if col not in count_labels]
+        extreme_labels = [col for col in stats_df.columns
+                          if (col[0] if isinstance(col, tuple) else col) == 'p value']  #TODO make configurable
+        metric_labels = list(set(stats_df.columns)
+                             - set(count_labels))
 
         # calculate count sums
         try:
-            grouped = stats_df[count_labels].groupby(level=level)
+            grouped = stats_df.groupby(level=level)
         except IndexError as e:
             logging.getLogger(str(path)).critical(
                 'Invalid group levels in aggregate_stats!  '
                 'Did you use it in the right evaluator group?'
             )
             raise e
-        counts = grouped.sum(min_count=1)
+        counts = grouped[count_labels].sum(min_count=1)
+
+        maxs = grouped[extreme_labels].max()
+        mins = grouped[extreme_labels].min()
 
         # calculate means, confidence interval bounds
         grouped = stats_df[metric_labels].groupby(level=level)
@@ -93,9 +98,12 @@ def _aggregate_stats(
 
         # for some reason concat doesn't like it if one of the dfs is empty and we supply a key
         # nonetheless... so only generate the headers if needed
-        keys = (([] if means.empty else ['mean', '95% conf']) +
-                ([] if counts.empty else ['total']))
-        stats_df = pd.concat([means, confs, counts], keys=keys, axis=1)
+        keys = (([] if means.empty else ['mean', '95% conf'])
+                + ([] if counts.empty else ['total'])
+                + ([] if maxs.empty else ['max'])
+                + ([] if mins.empty else ['min']))
+        stats_df = pd.concat(
+            [means, confs, counts, maxs, mins], keys=keys, axis=1)
 
         # make mean, conf, total the lowest of the column levels
         stats_df = pd.DataFrame(

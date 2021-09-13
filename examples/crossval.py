@@ -23,7 +23,7 @@ def main():
             max_test_tile_num=256,
             valid_frac=.2,
             crossval_evaluators=[AggregateStats(label='fold', over=['fold'])],
-            evaluators=[Grouped(auroc), Grouped(count)],
+            evaluators=[Grouped(auroc), Grouped(count), Grouped(p_value)],
             train=Train(
                 batch_size=96,
                 max_epochs=4),
