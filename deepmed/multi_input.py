@@ -2,26 +2,35 @@ import shutil
 import os
 import math
 import logging
-from typing import Callable, Iterable, Optional
+from typing import Callable, Iterable, Optional, cast
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Callable, Iterable, Union, Optional
-from fastai.callback.tracker import TrackerCallback
+from fastai.callback.hook import num_features_model
+from fastai.callback.progress import CSVLogger
+from fastai.callback.tracker import EarlyStoppingCallback, SaveModelCallback, TrackerCallback
 from functools import partial
-from fastai.data.transforms import CategoryMap
+from fastai.data.block import CategoryBlock, DataBlock, TransformBlock
+from fastai.data.transforms import CategoryMap, ColReader, ColSplitter, RegressionSetup, get_c
+from fastai.layers import AdaptiveConcatPool2d, Flatten
+from fastai.learner import Learner, load_learner
+from fastai.losses import CrossEntropyLossFlat
+from fastai.metrics import BalancedAccuracy
+from fastai.optimizer import Adam
+from fastai.torch_core import apply_init, params
+from fastai.vision.augment import aug_transforms
+from fastai.vision.data import ImageBlock
+from fastai.vision.learner import create_body, create_cnn_model, create_head, model_meta
+from fastcore.basics import ifnone, store_attr, defaults
+from fastcore.foundation import L
+from fastcore.meta import delegates
 
 import torch
 import pandas as pd
 from torch import nn
 
-from fastcore.foundation import L
-from fastai.vision.all import (
-    Learner, DataBlock, ImageBlock, CategoryBlock, ColReader, ColSplitter, resnet18,
-    BalancedAccuracy, SaveModelCallback, EarlyStoppingCallback, CSVLogger, CrossEntropyLossFlat,
-    aug_transforms, load_learner, create_body, AdaptiveConcatPool2d, Flatten, create_head, params,
-    num_features_model, TransformBlock, RegressionSetup, delegates, create_cnn_model, Adam,
-    defaults, model_meta, store_attr, get_c, cast, apply_init, ifnone)
 from fastai.vision.learner import _add_norm, _default_meta
+from torchvision.models.resnet import resnet18
 
 from .utils import factory, log_defaults
 from .types import GPUTask
@@ -172,7 +181,7 @@ def _train(
 
     if (model_path := task.path/'export.pkl').exists():
         logger.warning(f'{model_path} already exists! using old model...')
-        return load_learner(model_path, cpu=False)
+        return load_learner(model_path)
 
     target_label, train_df, result_dir = task.target_label, task.train_df, task.path
 

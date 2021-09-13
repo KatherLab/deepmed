@@ -1,9 +1,10 @@
 import logging
 import re
 from typing import Optional
+from fastai.data.transforms import CategoryMap
+from fastai.learner import Learner
 
 import pandas as pd
-from fastai.vision.all import Learner, CategoryMap
 from typing import Iterable
 
 from .types import GPUTask

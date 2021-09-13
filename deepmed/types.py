@@ -5,8 +5,9 @@ from itertools import cycle
 from typing import Optional, Callable, Iterator, Union, Mapping
 from typing_extensions import Protocol
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from threading import Event
+from fastai.learner import Learner
 
 import pandas as pd
 from multiprocessing.managers import BaseManager
@@ -17,7 +18,6 @@ from pathlib import Path
 
 import torch
 import pandas as pd
-from fastai.vision.all import Learner
 
 from .evaluators.types import Evaluator
 

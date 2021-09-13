@@ -6,16 +6,21 @@ from typing import Callable, Iterable, Optional, List
 from pathlib import Path
 from functools import lru_cache
 from dataclasses import dataclass, field
+from fastai.callback.progress import CSVLogger
+from fastai.callback.tracker import EarlyStoppingCallback, SaveModelCallback, TrackerCallback
+from fastai.data.block import CategoryBlock, DataBlock, TransformBlock
+from fastai.data.transforms import ColReader, ColSplitter, IntToFloatTensor
+from fastai.learner import Learner, load_learner
+from fastai.losses import CrossEntropyLossFlat
+from fastai.metrics import BalancedAccuracy
+from fastai.vision.augment import aug_transforms
+from fastai.vision.core import PILImage
+from fastai.vision.learner import cnn_learner
+from torchvision.models import resnet18
 
 import torch
 import pandas as pd
 from torch import nn
-
-from fastai.vision.all import (
-    Learner, DataBlock, CategoryBlock, ColReader, ColSplitter, resnet18, cnn_learner,
-    BalancedAccuracy, SaveModelCallback, EarlyStoppingCallback, CSVLogger, CrossEntropyLossFlat,
-    aug_transforms, load_learner, TransformBlock, IntToFloatTensor, PILImage)
-from fastai.callback.tracker import TrackerCallback
 
 from .types import GPUTask
 
@@ -146,8 +151,7 @@ class _Train:
 
 def _fit_from_checkpoint(
         learn: Learner, result_dir: Path, lr: float, max_epochs: int, cbs: Iterable[Callable],
-        monitor: str, logger) \
-        -> None:
+        monitor: str, logger) -> None:
     logger.info('Continuing from checkpoint...')
 
     # get best performance so far
