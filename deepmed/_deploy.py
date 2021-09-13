@@ -45,6 +45,7 @@ def _deploy(learn: Learner, task: GPUTask) -> Optional[pd.DataFrame]:
     scores, _, class_preds = learn.get_preds(
         dl=test_dl, inner=True, with_decoded=True)
 
+    test_df = test_df.copy()
     # class-wise scores
     for class_, i in vocab.o2i.items():
         test_df[f'{target_label}_{class_}'] = scores[:, i]

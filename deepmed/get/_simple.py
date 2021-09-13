@@ -60,6 +60,7 @@ def cohort(
         else pd.read_excel(slide_path, dtype=dtype))
 
     cohort_df = clini_df.merge(slide_df, on=patient_label)
+    cohort_df = cohort_df.copy()    # for defragmentation
     cohort_df['slide_path'] = tiles_path/cohort_df[slidename_label]
 
     assert cohort_df.slide_path.map(Path.exists).any(), \
@@ -299,6 +300,7 @@ def _prepare_cohorts(
     # discretize values if necessary
     if cohorts_df[target_label].nunique() > 10:
         try:
+            cohorts_df = cohorts_df.copy()
             cohorts_df[target_label] = cohorts_df[target_label].map(float)
             logger.info(f'Discretizing {target_label}')
             if n_bins is not None:
