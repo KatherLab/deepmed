@@ -23,7 +23,8 @@ def do_experiment(
         get: TaskGetter,
         num_concurrent_tasks: Optional[int] = None,
         devices: Mapping[Union[str, int], int] = {0: 4},
-        logfile: Optional[str] = 'logfile') -> None:
+        logfile: Optional[str] = 'logfile',
+        keep_going: bool = False) -> None:
     """Runs an experiement.
 
     Args:
@@ -37,6 +38,7 @@ def do_experiment(
             (useful for debugging).
         devices:  The devices to use for training and the maximum number of
             models to be trained at once for each device.
+        keep_going:  Whether to stop all runs on an exception.
     """
     project_dir = Path(project_dir)
     project_dir.mkdir(exist_ok=True, parents=True)
@@ -69,10 +71,14 @@ def do_experiment(
         with ThreadPool(num_concurrent_tasks or 1) as pool:
             # only use pool if we actually want to task multiple tasks in parallel
             # for loop to consume iterator
-            for _ in (pool.imap_unordered(_task_wrapper, tasks, chunksize=1)
-                      if num_concurrent_tasks >= 1
-                      else (task.run() for task in tasks)):  # type: ignore
-                pass
+            try:
+                for _ in (pool.imap_unordered(_task_wrapper, tasks, chunksize=1)
+                        if num_concurrent_tasks >= 1
+                        else (task.run() for task in tasks)):  # type: ignore
+                    pass
+            except Exception as e:
+                if not keep_going:
+                    raise e
 
 
 def _task_wrapper(task: Task) -> None:
