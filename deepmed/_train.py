@@ -83,7 +83,7 @@ def _train(
 
     if (model_path := task.path/'export.pkl').exists():
         logger.warning(f'{model_path} already exists! using old model...')
-        return load_learner(model_path, cpu=False)
+        return load_learner(model_path)
 
     target_label, train_df, result_dir = task.target_label, task.train_df, task.path
 
@@ -135,10 +135,8 @@ def _train(
         learn.fine_tune(epochs=max_epochs, base_lr=lr, cbs=cbs)
 
     learn.export()
-
     shutil.rmtree(result_dir/'models')
-
-    return learn
+    return load_learner(result_dir/'export.pkl')
 
 
 def _fit_from_checkpoint(

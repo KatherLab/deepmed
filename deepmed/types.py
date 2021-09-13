@@ -54,7 +54,7 @@ class Task(ABC):
 class TaskGetter(Protocol):
     def __call__(
         self, project_dir: Path, manager: BaseManager, capacities: Mapping[Union[int, str], Semaphore]
-        ) -> Iterator[Task]:
+    ) -> Iterator[Task]:
         """A function which creates a series of task.
 
         Args:
@@ -124,17 +124,20 @@ class GPUTask(Task):
 
         for device, capacity in cycle(self.capacities.items()):
             # search for a free gpu
-            if not capacity.acquire(blocking=False): continue   # type: ignore
+            if not capacity.acquire(blocking=False):    # type: ignore
+                continue
             try:
                 with torch.cuda.device(device):
                     learn = self.train(self)
-                    self.deploy(learn, self) if learn else None
-
                     break
             except Exception as e:
                 logger.exception(e)
                 raise e
-            finally: capacity.release()
+            finally:
+                capacity.release()
+
+        # TODO seperate deployment into seperate task
+        self.deploy(learn, self) if learn else None
 
 
 @dataclass
@@ -188,7 +191,8 @@ def _generate_preds_df(result_dir: Path) -> Optional[pd.DataFrame]:
             df[f'subset_{result_dir.name}'] = df_path.name
             dfs.append(df)
 
-        if not dfs: return None
+        if not dfs:
+            return None
 
         preds_df = pd.concat(dfs)
         preds_df.to_csv(preds_path, index=False, compression='zip')
