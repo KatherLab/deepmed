@@ -1,4 +1,5 @@
 from typing import Iterable, Tuple, Optional, Union, Sequence
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -73,7 +74,14 @@ def _aggregate_stats(
             col for col in stats_df.columns if col not in count_labels]
 
         # calculate count sums
-        grouped = stats_df[count_labels].groupby(level=level)
+        try:
+            grouped = stats_df[count_labels].groupby(level=level)
+        except IndexError as e:
+            logging.getLogger(str(path)).critical(
+                'Invalid group levels in aggregate_stats!  '
+                'Did you use it in the right evaluator group?'
+            )
+            raise e
         counts = grouped.sum(min_count=1)
 
         # calculate means, confidence interval bounds
