@@ -208,7 +208,7 @@ def _simple_run(
 
 
 def _generate_train_df(
-        train_cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable, n_bins: int,
+        train_cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable, n_bins: Optional[int],
         min_support: int, logger, patient_label: str, valid_frac: float, seed: int,
         train_df_path: Path, balance: bool, max_class_count: Optional[Mapping[str, int]],
         resample_each_epoch: bool, max_train_tile_num: int, max_valid_tile_num: int) -> pd.DataFrame:

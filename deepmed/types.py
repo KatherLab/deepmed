@@ -1,3 +1,4 @@
+from __future__ import annotations
 from abc import ABC, abstractmethod
 import logging
 from itertools import cycle
@@ -28,10 +29,7 @@ __all__ = [
 @dataclass  # type: ignore
 class Task(ABC):
     path: Path
-
     """The directory to save data in for this task."""
-    target_label: str
-    """The name of the target to train or deploy on."""
 
     requirements: Iterable[Event]
     """List of events which have to have occurred before this task can be
@@ -66,7 +64,7 @@ class TaskGetter(Protocol):
         raise NotImplementedError()
 
 
-Trainer = Callable[[Task], Optional[Learner]]
+Trainer = Callable[[GPUTask], Optional[Learner]]
 """A function which trains a model.
 
 Args:
@@ -94,6 +92,9 @@ PathLike = Union[str, Path]
 @dataclass
 class GPUTask(Task):
     """A collection of data to train or test a model."""
+
+    target_label: str
+    """The name of the target to train or deploy on."""
 
     train: Trainer
     deploy: Deployer
@@ -139,6 +140,9 @@ class GPUTask(Task):
 
 @dataclass
 class EvalTask(Task):
+    target_label: Optional[str]
+    """The name of the target to train or deploy on."""
+
     evaluators: Iterable[Evaluator]
 
     def do_work(self) -> None:
