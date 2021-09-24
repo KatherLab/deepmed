@@ -38,7 +38,7 @@ def _top_tiles(
         # class_ == MSIH
         outdir = result_dir/_generate_tiles_fn(
                 target_label, class_, best_patients, best_tiles, n_patients, n_tiles)
-        outfile = outdir.with_suffix('.svg')
+        outfile = Path(str(outdir) + '.svg')
         if outfile.exists() and (outdir.exists() or not save_images):
             continue
         if save_images:
