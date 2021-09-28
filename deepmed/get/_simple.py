@@ -158,6 +158,9 @@ def simple_run(
                 train_cohorts_df, target_label, na_values, n_bins, min_support, logger,
                 patient_label, valid_frac, seed, train_df_path, balance, max_class_count,
                 resample_each_epoch, max_train_tile_num, max_valid_tile_num)
+            # unable to generate a train df (e.g. because of insufficient data)
+            if train_df is None:
+                return
         else:
             train_df = None
 
@@ -208,7 +211,7 @@ def _generate_train_df(
         min_support: int, logger, patient_label: str, valid_frac: float, seed: int,
         train_df_path: Path, balance: bool, max_class_count: Optional[Mapping[str, int]],
         resample_each_epoch: bool, max_train_tile_num: int, max_valid_tile_num: int
-        ) -> pd.DataFrame:
+        ) -> Optional[pd.DataFrame]:
     train_cohorts_df = _prepare_cohorts(
         train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
 
