@@ -33,7 +33,7 @@ def deploy(learn: Learner, task: GPUTask) -> Optional[pd.DataFrame]:
 
     # restrict testing classes to those known by the model
     if not (known_idx := test_df[target_label].isin(vocab)).all():
-        unknown_classes = test_df[~known_idx].unique()
+        unknown_classes = test_df[target_label][~known_idx].unique()
         logger.warning(f'classes unknown to model in test data: {unknown_classes}!  Dropping them...')
         test_df = test_df[known_idx]
 
