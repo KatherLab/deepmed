@@ -86,7 +86,7 @@ def _simple_run(
         train: Trainer = Train(),
         deploy: Deployer = Deploy(),
         resample_each_epoch: bool = False,
-        max_train_tile_num: int = 64,
+        max_train_tile_num: int = 128,
         max_valid_tile_num: int = 256,
         max_test_tile_num: int = 512,
         seed: int = 0,
