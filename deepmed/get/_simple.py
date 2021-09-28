@@ -14,7 +14,7 @@ from tqdm import tqdm
 import numpy as np
 
 from ..evaluators.types import Evaluator
-from ..utils import is_continuous, log_defaults
+from ..utils import exists_and_has_size, is_continuous, log_defaults
 from .._experiment import Task, GPUTask, EvalTask
 
 from .._train import Train
@@ -140,9 +140,8 @@ def _simple_run(
     logger = logging.getLogger(str(project_dir))
 
     eval_reqs = []
-    if (preds_df_path := project_dir/'predictions.csv.zip').exists():
-        logger.warning(
-            f'{preds_df_path} already exists, skipping training/deployment!')
+    if exists_and_has_size(preds_df_path := project_dir/'predictions.csv.zip'):
+        logger.warning(f'{preds_df_path} already exists, skipping training/deployment!')
 
         yield EvalTask(
             path=project_dir,
@@ -152,7 +151,7 @@ def _simple_run(
             evaluators=evaluators)
     else:
         # training set
-        if (train_df_path := project_dir/'training_set.csv.zip').exists():
+        if exists_and_has_size(train_df_path := project_dir/'training_set.csv.zip'):
             logger.warning(
                 f'{train_df_path} already exists, using old training set!')
             train_df = pd.read_csv(train_df_path)
@@ -162,11 +161,14 @@ def _simple_run(
                 train_cohorts_df, target_label, na_values, n_bins, min_support, logger,
                 patient_label, valid_frac, seed, train_df_path, balance, max_class_count,
                 resample_each_epoch, max_train_tile_num, max_valid_tile_num)
+            # unable to generate a train df (e.g. because of insufficient data)
+            if train_df is None:
+                return
         else:
             train_df = None
 
         # testing set
-        if (test_df_path := project_dir/'testing_set.csv.zip').exists():
+        if exists_and_has_size(test_df_path := project_dir/'testing_set.csv.zip'):
             # load old testing set if it exists
             logger.warning(
                 f'{test_df_path} already exists, using old testing set!')
@@ -211,7 +213,8 @@ def _generate_train_df(
         train_cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable, n_bins: Optional[int],
         min_support: int, logger, patient_label: str, valid_frac: float, seed: int,
         train_df_path: Path, balance: bool, max_class_count: Optional[Mapping[str, int]],
-        resample_each_epoch: bool, max_train_tile_num: int, max_valid_tile_num: int) -> pd.DataFrame:
+        resample_each_epoch: bool, max_train_tile_num: int, max_valid_tile_num: int
+        ) -> Optional[pd.DataFrame]:
     train_cohorts_df = _prepare_cohorts(
         train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
 

@@ -3,8 +3,9 @@ import logging
 from typing import Callable, Any
 from functools import wraps, cached_property, partial
 import pandas as pd
+from pathlib import Path
 
-__all__ = ['log_defaults', 'Lazy', 'is_continuous', 'factory']
+__all__ = ['log_defaults', 'Lazy', 'is_continuous', 'factory', 'exists_and_has_size']
 
 
 def log_defaults(func):
@@ -61,3 +62,12 @@ def factory(f: Callable) -> Callable[..., Callable]:
     def g(*args, **kwargs) -> Callable:
         return partial(f, *args, **kwargs)
     return g
+
+
+def exists_and_has_size(zip_path: Path) -> bool:
+    """Checks if a file exists and has non-zero size.
+    
+    This works as a heuristic to see if the writing of a large zip file was
+    interrupted and thus is corrupted.
+    """
+    return zip_path.exists() and zip_path.stat().st_size > 0

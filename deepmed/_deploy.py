@@ -8,7 +8,7 @@ import pandas as pd
 from typing import Iterable
 
 from .types import GPUTask
-from .utils import log_defaults, is_continuous, factory
+from .utils import exists_and_has_size, log_defaults, is_continuous, factory
 
 __all__ = ['Deploy']
 
@@ -20,7 +20,7 @@ def _deploy(learn: Learner, task: GPUTask) -> Optional[pd.DataFrame]:
     if task.test_df is None:
         logger.warning('No testing set found! Skipping deployment...')
         return None
-    elif (preds_path := task.path/'predictions.csv.zip').exists():
+    elif exists_and_has_size(preds_path := task.path/'predictions.csv.zip'):
         logger.warning(f'{preds_path} already exists, skipping deployment...')
         return pd.read_csv(preds_path, low_memory=False)
 
