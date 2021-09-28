@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from deepmed.utils import exists_and_has_size
 import logging
 from itertools import cycle
 
@@ -176,7 +177,7 @@ def _raise_df_column_level(df, level):
 
 def _generate_preds_df(result_dir: Path) -> Optional[pd.DataFrame]:
     # load predictions
-    if (preds_path := result_dir/'predictions.csv.zip').exists():
+    if exists_and_has_size(preds_path := result_dir/'predictions.csv.zip'):
         preds_df = pd.read_csv(preds_path, low_memory=False)
     else:
         # create an accumulated predictions df if there isn't one already

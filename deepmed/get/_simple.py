@@ -14,7 +14,7 @@ from tqdm import tqdm
 import numpy as np
 
 from ..evaluators.types import Evaluator
-from ..utils import log_defaults
+from ..utils import exists_and_has_size, log_defaults
 from .._experiment import Task, GPUTask, EvalTask
 
 from .._train import train
@@ -137,8 +137,8 @@ def simple_run(
     logger = logging.getLogger(str(project_dir))
 
     eval_reqs = []
-    if (preds_df_path := project_dir/'predictions.csv.zip').exists():
-        logger.warning(f'{preds_df_path} already exists, skipping training/deployment!')
+    if exists_and_has_size(preds_df_path := project_dir/'predictions.csv.zip'):
+        logger.warning(f'{preds_df_path} {preds_df_path.stat().st_size} already exists, skipping training/deployment!')
 
         yield EvalTask(
             path=project_dir,
@@ -148,7 +148,7 @@ def simple_run(
             evaluators=evaluators)
     else:
         # training set
-        if (train_df_path := project_dir/'training_set.csv.zip').exists():
+        if exists_and_has_size(train_df_path := project_dir/'training_set.csv.zip'):
             logger.warning(
                 f'{train_df_path} already exists, using old training set!')
             train_df = pd.read_csv(train_df_path)
@@ -162,7 +162,7 @@ def simple_run(
             train_df = None
 
         # testing set
-        if (test_df_path := project_dir/'testing_set.csv.zip').exists():
+        if exists_and_has_size(test_df_path := project_dir/'testing_set.csv.zip'):
             # load old testing set if it exists
             logger.warning(
                 f'{test_df_path} already exists, using old testing set!')

@@ -3,8 +3,9 @@ import logging
 from typing import Callable, Any
 from functools import wraps, cached_property
 import pandas as pd
+from pathlib import Path
 
-__all__ = ['log_defaults', 'Lazy', 'is_continuous']
+__all__ = ['log_defaults', 'Lazy', 'is_continuous', 'exists_and_has_size']
 
 
 def log_defaults(func):
@@ -54,3 +55,12 @@ class Lazy:
 
 def is_continuous(series: pd.Series) -> bool:
     return series.dtype == float
+
+
+def exists_and_has_size(zip_path: Path) -> bool:
+    """Checks if a file exists and has non-zero size.
+    
+    This works as a heuristic to see if the writing of a large zip file was
+    interrupted and thus is corrupted.
+    """
+    return zip_path.exists() and zip_path.stat().st_size > 0
