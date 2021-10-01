@@ -9,7 +9,7 @@ from sklearn.model_selection import StratifiedKFold
 
 from .._experiment import Task, EvalTask
 from ._simple import _prepare_cohorts
-from ..utils import log_defaults, factory
+from ..utils import exists_and_has_size, log_defaults, factory
 from ..get import Evaluator
 
 
@@ -69,7 +69,7 @@ def _crossval(
     logger = logging.getLogger(str(project_dir))
     project_dir.mkdir(parents=True, exist_ok=True)
 
-    if (folds_path := project_dir/'folds.csv.zip').exists():
+    if exists_and_has_size(folds_path := project_dir/'folds.csv.zip'):
         folded_df = pd.read_csv(folds_path, dtype=str)
         folded_df.slide_path = folded_df.slide_path.map(Path)
     else:
