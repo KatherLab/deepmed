@@ -37,6 +37,7 @@ class Task(ABC):
     requirements: Iterable[Event]
     """List of events which have to have occurred before this task can be
     started."""
+    
     done: Event
     """Whether this task has concluded."""
 
