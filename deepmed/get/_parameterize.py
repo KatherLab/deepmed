@@ -40,7 +40,7 @@ def _parameterize(
         The tasks ``get`` would yield for each of the parameterizations.
     """
     eval_reqirements = []
-    for name, parameterization in parameterizations:
+    for name, parameterization in parameterizations.items():
         for task in get(
                 *args, project_dir=project_dir/name, manager=manager,
                 # overwrite default ``kwargs``` w/ parameterization ones, if they were given
