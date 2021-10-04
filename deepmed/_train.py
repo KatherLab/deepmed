@@ -50,7 +50,7 @@ TileBlock = TransformBlock(type_tfms=get_tile, batch_tfms=IntToFloatTensor)
 
 
 @dataclass
-class _Train:
+class Train:
     """Trains a single model.
 
     Args:
@@ -175,14 +175,3 @@ def _fit_from_checkpoint(
     learn.unfreeze()
     learn.fit_one_cycle(remaining_epochs, slice(
         lr/100, lr), pct_start=.3, div=5., cbs=cbs)
-
-
-class Train(_Train):
-    def __init__(self, **kwargs) -> None:
-        self._non_default_attrs = kwargs
-        super().__init__(**kwargs)
-
-    def __repr__(self) -> str:
-        return (
-            f'{self.__class__.__name__}'
-            f'({", ".join(f"{k}={v!r}" for k, v in sorted(self._non_default_attrs.items()))})')
