@@ -9,6 +9,8 @@ import pandas as pd
 from pathlib import Path
 from typing import Optional
 
+from deepmed.utils import is_continuous
+
 from .types import Evaluator
 
 
@@ -32,7 +34,7 @@ class Grouped:
     """
     evaluator: Evaluator
     """Metric to evaluate on the grouped predictions."""
-    mode: GroupMode = GroupMode.prediction_rate
+    mode: Optional[GroupMode] = None
     """Mode to group predictions."""
     by: str = 'PATIENT'
     """Label to group the predictions by."""
@@ -42,23 +44,33 @@ class Grouped:
         group_dir = result_dir/self.by
         group_dir.mkdir(exist_ok=True)
         grouped_df = _group_df(preds_df, target_label, self.by, self.mode)
-        if (df := self.evaluator(target_label, grouped_df, group_dir)) is not None: # type: ignore
+        if (df := self.evaluator(target_label, grouped_df, group_dir)) is not None:  # type: ignore
             columns = pd.MultiIndex.from_product([df.columns, [self.by]])
             return pd.DataFrame(df.values, index=df.index, columns=columns)
 
         return None
 
 
-def _group_df(preds_df: pd.DataFrame, target_label: str, by: str, mode: GroupMode) -> pd.DataFrame:
+def _group_df(preds_df: pd.DataFrame, target_label: str, by: str, mode: Optional[GroupMode]) -> pd.DataFrame:
     grouped_df = preds_df.groupby(by).first()
+
+    if mode is None:
+        mode = (GroupMode.mean if is_continuous(preds_df[target_label])
+                else GroupMode.prediction_rate)
+
     for class_ in preds_df[target_label].unique():
         if mode == GroupMode.prediction_rate:
             grouped_df[f'{target_label}_{class_}'] = (
-                    preds_df.groupby(by)[f'{target_label}_pred']
-                            .agg(lambda x: sum(x == class_) / len(x)))
+                preds_df.groupby(by)[f'{target_label}_pred']
+                .agg(lambda x: sum(x == class_) / len(x)))
         elif mode == GroupMode.mean:
-            grouped_df[f'{target_label}_{class_}'] = \
-                    preds_df.groupby(by)[f'{target_label}_pred'].mean()
+            if is_continuous(preds_df[target_label]):
+                grouped_df[f'{target_label}_score'] = \
+                    preds_df.groupby(by)[f'{target_label}_score'].mean()
+            else:
+                raise NotImplementedError() #TODO
+        else:
+            raise ValueError(f'unexpected {mode=}')
 
     return grouped_df
 
@@ -73,15 +85,17 @@ class SubGrouped:
     The metric will be calculated seperately for each distinct label of this
     property.
     """
+
     def __call__(self, target_label: str, preds_df: pd.DataFrame, result_dir: Path) \
             -> Optional[pd.DataFrame]:
         dfs = []
         for group, group_df in preds_df.groupby(self.by):
             group_dir = result_dir/group
             group_dir.mkdir(parents=True, exist_ok=True)
-            if (df := self.evaluator(target_label, group_df, group_dir)) is not None: # type: ignore
+            if (df := self.evaluator(target_label, group_df, group_dir)) is not None:  # type: ignore
                 columns = pd.MultiIndex.from_product([df.columns, [group]])
-                dfs.append(pd.DataFrame(df.values, index=df.index, columns=columns))
+                dfs.append(pd.DataFrame(
+                    df.values, index=df.index, columns=columns))
 
         if dfs:
             return pd.concat(dfs)
