@@ -32,6 +32,12 @@ import scipy.stats as st
 from ..utils import factory
 
 
+def r2(target_label: str, preds_df: pd.DataFrame, _: Path) -> pd.DataFrame:
+    return pd.DataFrame.from_dict(
+        {'score': [skm.r2_score(preds_df[target_label], preds_df[f'{target_label}_score'])]},
+        columns=['r2'], orient='index')
+
+
 def p_value(target_label: str, preds_df: pd.DataFrame, _result_dir: Path) -> pd.DataFrame:
     stats = {}
     for class_ in preds_df[target_label].unique():

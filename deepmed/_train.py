@@ -8,11 +8,10 @@ from functools import lru_cache
 from dataclasses import dataclass, field
 from fastai.callback.progress import CSVLogger
 from fastai.callback.tracker import EarlyStoppingCallback, SaveModelCallback, TrackerCallback
-from fastai.data.block import CategoryBlock, DataBlock, TransformBlock
+from fastai.data.block import CategoryBlock, DataBlock, RegressionBlock, TransformBlock
 from fastai.data.transforms import ColReader, ColSplitter, IntToFloatTensor
 from fastai.learner import Learner, load_learner
 from fastai.losses import CrossEntropyLossFlat
-from fastai.metrics import BalancedAccuracy
 from fastai.vision.augment import aug_transforms
 from fastai.vision.core import PILImage
 from fastai.vision.learner import cnn_learner
@@ -23,6 +22,7 @@ import pandas as pd
 from torch import nn
 
 from .types import GPUTask
+from .utils import is_continuous
 
 __all__ = ['Train']
 
@@ -80,8 +80,7 @@ class Train:
     tfms: Optional[Callable] = field(
         default_factory=lambda: aug_transforms(
             flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224))
-    metrics: Iterable[Callable] = field(
-        default_factory=lambda: [BalancedAccuracy()])
+    metrics: Iterable[Callable] = field(default_factory=list)
     patience: int = 3
     monitor: str = 'valid_loss'
 
@@ -98,7 +97,9 @@ class Train:
             logger.debug('Cannot train: no training set given!')
             return None
 
-        dblock = DataBlock(blocks=(TileBlock, CategoryBlock),
+        y_block = RegressionBlock if is_continuous(train_df[target_label]) else CategoryBlock
+
+        dblock = DataBlock(blocks=(TileBlock, y_block),
                            get_x=ColReader('tile_path'),
                            get_y=ColReader(target_label),
                            splitter=ColSplitter('is_valid'),
@@ -114,18 +115,19 @@ class Train:
         logger.debug(
             f'Class counts in validation set: {train_df[train_df.is_valid].iloc[:, target_col_idx].value_counts()}')
 
-        counts = train_df[~train_df.is_valid].iloc[:,
-                                                   target_col_idx].value_counts()
-
-        counts = torch.tensor([counts[k] for k in dls.vocab])
-        weights = 1 - (counts / sum(counts))
-
-        logger.debug(f'{dls.vocab = }, {weights = }')
+        if is_continuous(train_df[target_label]):
+            loss_func = None
+        else:
+            counts = train_df[~train_df.is_valid].iloc[:,target_col_idx].value_counts()
+            counts = torch.tensor([counts[k] for k in dls.vocab])
+            weights = 1 - (counts / sum(counts))
+            loss_func = CrossEntropyLossFlat(weight=weights.cuda())
+            logger.debug(f'{dls.vocab = }, {weights = }')
 
         learn = cnn_learner(
             dls, self.arch,
             path=result_dir,
-            loss_func=CrossEntropyLossFlat(weight=weights.cuda()),
+            loss_func=loss_func,
             metrics=self.metrics)
 
         cbs = [

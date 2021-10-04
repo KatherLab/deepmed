@@ -10,6 +10,7 @@ import torch
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn import preprocessing
+from torch._C import _is_torch_function_enabled
 from tqdm import tqdm
 import numpy as np
 
@@ -223,8 +224,14 @@ def _generate_train_df(
             f'Not enough classes for target {target_label}! skipping...')
         return
 
-    logger.info(
-        f'Training slide counts: {dict(train_cohorts_df[target_label].value_counts())}')
+    if is_continuous(train_cohorts_df[target_label]):
+        targets = train_cohorts_df[target_label]
+        logger.info(
+            f'Training slide count: {len(targets)} (mean={targets.mean()}, std={targets.std()})')
+    else:
+        logger.info(
+            f'Training slide counts: {dict(train_cohorts_df[target_label].value_counts())}')
+
 
     # only use a subset of patients
     # (can be useful to compare behavior when training on different cohorts)
@@ -241,8 +248,12 @@ def _generate_train_df(
 
     # split off validation set
     patients = train_cohorts_df.groupby(patient_label)[target_label].first()
-    _, valid_patients = train_test_split(
-        patients.index, test_size=valid_frac, stratify=patients)
+    if is_continuous(train_cohorts_df[target_label]):
+        _, valid_patients = train_test_split(patients.index, test_size=valid_frac)
+    else:
+        _, valid_patients = train_test_split(
+            patients.index, test_size=valid_frac, stratify=patients)
+
     train_cohorts_df['is_valid'] = train_cohorts_df[patient_label].isin(
         valid_patients)
 
@@ -269,7 +280,7 @@ def _generate_train_df(
     logger.debug(
         f'Validation tiles: {dict(valid_df[target_label].value_counts())}')
 
-    if balance:
+    if balance and not is_continuous(train_df[target_label]):
         train_df = _balance_classes(
             tiles_df=train_df, target=target_label)
         valid_df = _balance_classes(tiles_df=valid_df, target=target_label)
@@ -292,6 +303,7 @@ def _prepare_cohorts(
     Discretizes continuous targets and drops classes for which only few examples
     are present.
     """
+    cohorts_df = cohorts_df.copy()
     if not is_continuous(cohorts_df[target_label]):
         cohorts_df[target_label] = cohorts_df[target_label].str.strip()
 
@@ -300,22 +312,17 @@ def _prepare_cohorts(
     for na_value in na_values:
         cohorts_df = cohorts_df[cohorts_df[target_label] != na_value]
 
-    # discretize values if necessary
-    if cohorts_df[target_label].nunique() > 10:
-        try:
-            cohorts_df = cohorts_df.copy()
-            cohorts_df[target_label] = cohorts_df[target_label].map(float)
-            logger.info(f'Discretizing {target_label}')
-            if n_bins is not None:
-                cohorts_df[target_label] = _discretize(
-                    cohorts_df[target_label].values, n_bins=n_bins)
-        except ValueError:
-            pass
+    if n_bins is not None and is_continuous(cohorts_df[target_label]):
+        # discretize
+        logger.info(f'Discretizing {target_label}')
+        cohorts_df[target_label] = _discretize(
+            cohorts_df[target_label].values, n_bins=n_bins)
 
-    # drop classes with insufficient support
-    class_counts = cohorts_df[target_label].value_counts()
-    rare_classes = (class_counts[class_counts < min_support]).index
-    cohorts_df = cohorts_df[~cohorts_df[target_label].isin(rare_classes)]
+    if not is_continuous(cohorts_df[target_label]):
+        # drop classes with insufficient support
+        class_counts = cohorts_df[target_label].value_counts()
+        rare_classes = (class_counts[class_counts < min_support]).index
+        cohorts_df = cohorts_df[~cohorts_df[target_label].isin(rare_classes)]
 
     # filter slides w/o tiles
     slides_with_tiles = cohorts_df.slide_path.map(
