@@ -1,42 +1,30 @@
 from multiprocessing.managers import SyncManager
 from pathlib import Path
-from typing import Iterable, Iterator, Mapping, Any
-from typing_extensions import Protocol
-from ..types import Task, EvalTask
+from typing import Iterable, Iterator
+
+from ..types import Task
 from ..evaluators.types import Evaluator
 from ..utils import factory
-
-
-class MultiTargetBaseTaskGetter(Protocol):
-    """The signature of a task getter which can be modified by ``multi_target``."""
-
-    def __call__(
-            self, *args,
-            project_dir: Path, manager: SyncManager, target_label: str, **kwargs) -> Iterator[Task]:
-        ...
+from ._parameterize import _parameterize, ParameterizeBaseTaskGetter
 
 
 def _multi_target(
-        get: MultiTargetBaseTaskGetter,
+        get: ParameterizeBaseTaskGetter,
         *args,
         project_dir: Path,
         manager: SyncManager,
         target_labels: Iterable[str],
         multi_target_evaluators: Iterable[Evaluator] = [],
-        target_kwargs: Mapping[str, Mapping[str, Any]] = {},
         **kwargs) -> Iterator[Task]:
-    #TODO implement using `parameterize`
     """Adapts a `TaskGetter` into a multi-target one.
+
+    Convenience wrapper around :func:``deepmed.Parameterize``.
 
     Args:
         get:  The `TaskGetter` to adapt; it has to take at least one keyword
             argument `target_label`.
         project_dir:  The directory to save the tasks' results to.
         target_label:  The target labels to invoke ``get`` on.
-        target_kwargs:  A dictionary of ``kwargs`` to pass to ``get`` for
-            specific targets.  If there is overlap between the ``kwargs`` given
-            to :func:`multi_target` and ``target_kwargs`` for a certain target,
-            the ``target_kwargs`` one takes precedence.
         *args:  Additional arguments give to ``get``.
         **kwargs:  Additional keyword arguments to give to ``get``.
 
@@ -45,25 +33,13 @@ def _multi_target(
         in the order of the target labels.  The task directories are prepended
         by a the name of the target label.
     """
-    eval_reqirements = []
-    for target_label in target_labels:
-        target_dir = project_dir/target_label
-
-        for task in get(
-                *args, project_dir=target_dir, manager=manager, target_label=target_label,
-                # overwrite default ``kwargs``` w/ target-specific ones, if they were given
-                **({**kwargs, **target_kwargs[target_label]}
-                   if target_label in kwargs
-                   else kwargs)):
-            eval_reqirements.append(task.done)
-            yield task
-
-    yield EvalTask(
-        path=project_dir,
-        target_label=target_label,
-        requirements=eval_reqirements,
-        evaluators=multi_target_evaluators,
-        done=manager.Event())
+    return _parameterize(
+        get, *args, project_dir=project_dir, manager=manager,
+        parameterizations={
+            target_label: {'target_label': target_label}
+            for target_label in target_labels},
+        parameterize_evaluators=multi_target_evaluators,
+        **kwargs)
 
 
 MultiTarget = factory(_multi_target)
