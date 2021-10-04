@@ -26,19 +26,22 @@ def _deploy(learn: Learner, task: GPUTask) -> Optional[pd.DataFrame]:
 
     test_df, target_label = task.test_df, task.target_label
 
-    vocab = learn.dls.vocab
-    if not isinstance(vocab, CategoryMap):
-        vocab = vocab[-1]
+    if hasattr(learn.dls, 'vocab'):  # not possible for continuous targets
+        vocab = learn.dls.vocab
+        if not isinstance(vocab, CategoryMap):
+            vocab = vocab[-1]
 
-    test_df = _discretize_if_necessary(
-        test_df=test_df, target_label=target_label, vocab=vocab)
+        test_df = _discretize_if_necessary(
+            test_df=test_df, target_label=target_label, vocab=vocab)
 
-    # restrict testing classes to those known by the model
-    if not (known_idx := test_df[target_label].isin(vocab)).all():
-        unknown_classes = test_df[target_label][~known_idx].unique()
-        logger.warning(
-            f'classes unknown to model in test data: {unknown_classes}!  Dropping them...')
-        test_df = test_df[known_idx]
+        # restrict testing classes to those known by the model
+        if not (known_idx := test_df[target_label].isin(vocab)).all():
+            unknown_classes = test_df[target_label][~known_idx].unique()
+            logger.warning(
+                f'classes unknown to model in test data: {unknown_classes}!  Dropping them...')
+            test_df = test_df[known_idx]
+    else:
+        vocab = None
 
     test_dl = learn.dls.test_dl(test_df)
     # inner needed so we don't jump GPUs
@@ -47,12 +50,15 @@ def _deploy(learn: Learner, task: GPUTask) -> Optional[pd.DataFrame]:
         dl=test_dl, inner=True, with_decoded=True)
 
     test_df = test_df.copy()
-    # class-wise scores
-    for class_, i in vocab.o2i.items():
-        test_df[f'{target_label}_{class_}'] = scores[:, i]
+    if vocab is not None:
+        # class-wise scores
+        for class_, i in vocab.o2i.items():
+            test_df[f'{target_label}_{class_}'] = scores[:, i]
 
-    # class prediction (i.e. the class w/ the highest score for each tile)
-    test_df[f'{target_label}_pred'] = vocab.map_ids(class_preds)
+        # class prediction (i.e. the class w/ the highest score for each tile)
+        test_df[f'{target_label}_pred'] = vocab.map_ids(class_preds)
+    else:
+        test_df[f'{target_label}_score'] = scores[:, 0]
 
     test_df.to_csv(preds_path, index=False, compression='zip')
 
