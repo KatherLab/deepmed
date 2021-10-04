@@ -20,7 +20,8 @@ def log_defaults(func):
                                 if (param := params[k]).default != inspect.Parameter.empty]
         # log them
         for param in params_with_defaults:
-            logging.getLogger(func.__module__).debug(f'using default value {param}')
+            logging.getLogger(func.__module__).debug(
+                f'using default value {param}')
 
         # call wrapped function
         return func(*args, **kwargs)
@@ -30,6 +31,7 @@ def log_defaults(func):
 
 class Lazy:
     """A wrapper which constructs the underlying object only when it is needed."""
+
     def __init__(self, factory: Callable[[], Any]) -> None:
         self._factory = factory
 
@@ -66,7 +68,7 @@ def factory(f: Callable) -> Callable[..., Callable]:
 
 def exists_and_has_size(zip_path: Path) -> bool:
     """Checks if a file exists and has non-zero size.
-    
+
     This works as a heuristic to see if the writing of a large zip file was
     interrupted and thus is corrupted.
     """

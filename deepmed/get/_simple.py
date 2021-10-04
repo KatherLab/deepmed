@@ -142,7 +142,8 @@ def _simple_run(
 
     eval_reqs = []
     if exists_and_has_size(preds_df_path := project_dir/'predictions.csv.zip'):
-        logger.warning(f'{preds_df_path} already exists, skipping training/deployment!')
+        logger.warning(
+            f'{preds_df_path} already exists, skipping training/deployment!')
 
         yield EvalTask(
             path=project_dir,
@@ -214,8 +215,7 @@ def _generate_train_df(
         train_cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable, n_bins: Optional[int],
         min_support: int, logger, patient_label: str, valid_frac: float, seed: int,
         train_df_path: Path, balance: bool, max_class_count: Optional[Mapping[str, int]],
-        resample_each_epoch: bool, max_train_tile_num: int, max_valid_tile_num: int
-        ) -> Optional[pd.DataFrame]:
+        resample_each_epoch: bool, max_train_tile_num: int, max_valid_tile_num: int) -> Optional[pd.DataFrame]:
     train_cohorts_df = _prepare_cohorts(
         train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
 
@@ -231,7 +231,6 @@ def _generate_train_df(
     else:
         logger.info(
             f'Training slide counts: {dict(train_cohorts_df[target_label].value_counts())}')
-
 
     # only use a subset of patients
     # (can be useful to compare behavior when training on different cohorts)
@@ -249,7 +248,8 @@ def _generate_train_df(
     # split off validation set
     patients = train_cohorts_df.groupby(patient_label)[target_label].first()
     if is_continuous(train_cohorts_df[target_label]):
-        _, valid_patients = train_test_split(patients.index, test_size=valid_frac)
+        _, valid_patients = train_test_split(
+            patients.index, test_size=valid_frac)
     else:
         _, valid_patients = train_test_split(
             patients.index, test_size=valid_frac, stratify=patients)

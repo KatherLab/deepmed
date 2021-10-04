@@ -65,6 +65,31 @@ class TaskGetter(Protocol):
         raise NotImplementedError()
 
 
+Trainer = Callable[['GPUTask'], Optional[Learner]]
+"""A function which trains a model.
+
+Args:
+    task:  The task to train.
+
+Returns:
+    The trained model.
+"""
+
+Deployer = Callable[[Learner, Task], pd.DataFrame]
+"""A function which deployes a model.
+
+Writes the results to a file ``predictions.csv.zip`` in the task directory.
+
+Args:
+    model:  The model to test on.
+    target_label:  The name to be given to the result column.
+    test_df:  A dataframe specifying which tiles to deploy the model on.
+    result_dir:  A folder to write intermediate results to.
+"""
+
+PathLike = Union[str, Path]
+
+
 @dataclass
 class GPUTask(Task):
     """A collection of data to train or test a model."""
@@ -112,31 +137,6 @@ class GPUTask(Task):
 
         # TODO seperate deployment into seperate task
         self.deploy(learn, self) if learn else None
-        
-
-Trainer = Callable[[GPUTask], Optional[Learner]]
-"""A function which trains a model.
-
-Args:
-    task:  The task to train.
-
-Returns:
-    The trained model.
-"""
-
-Deployer = Callable[[Learner, Task], pd.DataFrame]
-"""A function which deployes a model.
-
-Writes the results to a file ``predictions.csv.zip`` in the task directory.
-
-Args:
-    model:  The model to test on.
-    target_label:  The name to be given to the result column.
-    test_df:  A dataframe specifying which tiles to deploy the model on.
-    result_dir:  A folder to write intermediate results to.
-"""
-
-PathLike = Union[str, Path]
 
 
 @dataclass
