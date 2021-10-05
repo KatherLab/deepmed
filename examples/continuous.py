@@ -1,7 +1,8 @@
 
 #!/usr/bin/env python3
+from deepmed.evaluators import Evaluator
+from dataclasses import dataclass
 from deepmed.experiment_imports import *
-
 
 # this is a tiny toy data set; do not expect any good results from this
 cohort_path = untar_data(
@@ -20,8 +21,8 @@ def main():
             train_cohorts_df=cohorts_df,
             test_cohorts_df=cohorts_df,
             target_label='TMB (nonsynonymous)',
-            n_bins=None,
-            evaluators=[Grouped(r2), r2],
+            n_bins=None,    # don't discretize
+            evaluators=[Grouped(r2), r2, OnDiscretized(Grouped(auroc))],
         ),
     )
 

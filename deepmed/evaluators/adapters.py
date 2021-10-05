@@ -101,3 +101,28 @@ class SubGrouped:
             return pd.concat(dfs)
 
         return None
+
+@dataclass
+class OnDiscretized:
+    """Discretizes continuous values before passing it to an evaluator."""
+    #TODO implement for arbitrary bin number
+    evaluator: Evaluator
+
+    def __call__(self, target_label: str, preds_df: pd.DataFrame, result_dir: Path) -> Optional[pd.DataFrame]:
+        median = preds_df[target_label].median()
+        discretized_df = preds_df.copy()
+        median = discretized_df[target_label].median()
+
+        discretized_df[target_label] = preds_df[target_label] > median
+        discretized_df[f'{target_label}_pred'] = preds_df[f'{target_label}_score'] > median
+
+        centered = discretized_df[f'{target_label}_score'] - median
+
+        scaled_positives = (centered / centered.max() / 2 + .5)
+        scaled_negatives = (-centered / centered.min() / 2 + .5)
+        pos_scores = scaled_positives.where(centered > 0, scaled_negatives)
+
+        discretized_df[f'{target_label}_True'] = pos_scores
+        discretized_df[f'{target_label}_False'] = 1 - pos_scores
+
+        return self.evaluator(target_label, discretized_df, result_dir)

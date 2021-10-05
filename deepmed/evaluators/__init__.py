@@ -5,5 +5,5 @@ from .adapters import *
 from .top_tiles import *
 from .metrics import *
 
-__all__ = ['Grouped', 'SubGrouped', 'AggregateStats', 'Roc', 'GroupMode', 'Heatmap', 'TopTiles',
-           'F1', 'auroc', 'count', 'p_value', 'ConfusionMatrix', 'r2']
+__all__ = ['Grouped', 'SubGrouped', 'AggregateStats', 'OnDiscretized', 'Roc', 'GroupMode',
+           'Heatmap', 'TopTiles', 'F1', 'auroc', 'count', 'p_value', 'ConfusionMatrix', 'r2']
