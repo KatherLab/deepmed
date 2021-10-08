@@ -13,6 +13,6 @@ def _load(
         project_dir: Path,
         training_project_dir: Path) -> Learner:
     model_path = training_project_dir/task.path.relative_to(project_dir)/'export.pkl'
-    return load_learner(model_path)
+    return load_learner(model_path, cpu=False)
 
 Load = factory(_load)

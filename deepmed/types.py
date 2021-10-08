@@ -131,12 +131,11 @@ class GPUTask(Task):
             try:
                 with torch.cuda.device(device):
                     learn = self.train(self)
+                    if learn:
+                        self.deploy(learn, self)
                     break
             finally:
                 capacity.release()
-
-        # TODO seperate deployment into seperate task
-        self.deploy(learn, self) if learn else None
 
 
 @dataclass
