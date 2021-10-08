@@ -148,7 +148,7 @@ class Train:
 
         learn.export()
         shutil.rmtree(result_dir/'models')
-        return load_learner(result_dir/'export.pkl')
+        return learn
 
 
 def _fit_from_checkpoint(
