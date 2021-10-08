@@ -1,5 +1,6 @@
 from typing import Iterable, Tuple, Optional, Union, Sequence
 import logging
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -151,10 +152,20 @@ def _get_header_and_index_col(csv_path: Path) -> Tuple[Sequence[int], Sequence[i
         isMSIH,fold_0,MSIH,.7,.4
 
     this function would return ([0,1], [0,1,2]).
+
+    We also check if there is an index column header by checking for the first
+    row which ends on a comma::
+
+        ,,,auroc,f1
+        ,,,PATIENT,nan
+        target,fold,class,,         <- index column header
+        isMSIH,fold_0,MSIH,.7,.4
     """
     with open(csv_path) as f:
         index_no = f.readline().split(',').count('')
-        header_no = next(i for i, line in enumerate(f) if line[0] != ',') + 1
+        # get first non-header line
+        header_no = next(i for i, line in enumerate(f)
+                         if line[0] != ',' or re.search(',$', line)) + 1
 
     return (list(range(header_no)), list(range(index_no)))
 
