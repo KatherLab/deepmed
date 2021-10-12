@@ -68,9 +68,7 @@ class MultiInputModel(nn.Module):
 
         if tab:
             stack_val = torch.stack((tab), axis=1)
-            tensor_stack = cast(stack_val, torch.Tensor)
-
-            features = torch.cat([img_feats, tensor_stack], dim=1)
+            features = torch.cat([img_feats, stack_val], dim=1)
         else:
             features = img_feats
         return self.head(features)
