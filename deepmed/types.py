@@ -183,10 +183,10 @@ def _raise_df_column_level(df, level):
     if df.columns.empty:
         columns = pd.MultiIndex.from_product([[]] * level)
     elif isinstance(df.columns, pd.MultiIndex):
-        columns = pd.MultiIndex.from_tuples([col + (None,)*(level-df.columns.nlevels)
+        columns = pd.MultiIndex.from_tuples([col + ('n/a',)*(level-df.columns.nlevels)
                                              for col in df.columns])
     else:
-        columns = pd.MultiIndex.from_tuples([(col,) + (None,)*(level-df.columns.nlevels)
+        columns = pd.MultiIndex.from_tuples([(col,) + ('n/a',)*(level-df.columns.nlevels)
                                              for col in df.columns])
 
     return pd.DataFrame(df.values, index=df.index, columns=columns)
