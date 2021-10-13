@@ -27,7 +27,7 @@ def main():
             test_cohorts_df=test_cohorts_df,
             target_labels=['ER Status By IHC', 'TCGA Subtype', 'TMB (nonsynonymous)'],
             max_test_tile_num=512,
-            evaluators=[Grouped(auroc), Grouped(F1()), Grouped(count)],
+            evaluators=[auroc, Grouped(auroc), Grouped(F1()), Grouped(count)],
             multi_target_evaluators=[AggregateStats(label='target')],
             train=Load(
                 project_dir=project_dir,
