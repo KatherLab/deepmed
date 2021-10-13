@@ -18,7 +18,8 @@ class TestExamples(unittest.TestCase):
             'crossval.py',
             'subgroup.py',
             'parameterize.py',
-            'continuous.py'
+            'continuous.py',
+            'extract_features.py',
         ]
         example_path = Path('examples').absolute()
 

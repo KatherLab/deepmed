@@ -11,6 +11,6 @@ from pathlib import Path
 import pandas as pd
 import deepmed
 from deepmed import *
-from deepmed import get, multi_input, evaluators
+from deepmed import get, multi_input, evaluators, extract_features
 from deepmed.evaluators import *
 from deepmed.get import cohort

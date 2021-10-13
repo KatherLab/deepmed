@@ -94,7 +94,7 @@ class Train:
         target_label, train_df, result_dir = task.target_label, task.train_df, task.path
 
         if train_df is None:
-            logger.debug('Cannot train: no training set given!')
+            logger.warning('Cannot train: no training set given!')
             return None
 
         y_block = RegressionBlock if is_continuous(train_df[target_label]) else CategoryBlock
