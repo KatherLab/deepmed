@@ -153,6 +153,11 @@ class EvalTask(Task):
         stats_df = None
         for evaluate in self.evaluators:
             if (df := evaluate(self.target_label, preds_df, self.path)) is not None:
+                assert isinstance(df, pd.DataFrame), \
+                    f'{getattr(evaluate, __name__, evaluate)} did not return a DataFrame!  ' \
+                     'Did you forget parentheses after its evaluator constructor ' \
+                    f'(e.g. `{_camel_case_name(evaluate)}()`)?'
+
                 if stats_df is None:
                     stats_df = df
                     stats_df.index.name = 'class'
@@ -164,6 +169,14 @@ class EvalTask(Task):
                     stats_df = stats_df.join(df)
         if stats_df is not None:
             stats_df.to_csv(self.path/'stats.csv')
+
+
+def _camel_case_name(obj) -> str:
+    """Tries to construct the camel case name of an object."""
+    if hasattr(obj, '__name__'):
+        return ''.join(word.title() for word in obj.__name__.split('_'))    # make into CamelCase
+    else:
+        return repr(obj)    # fallback: just return repr
 
 
 def _raise_df_column_level(df, level):
