@@ -49,7 +49,7 @@ def _deploy(learn: Learner, task: GPUTask) -> Optional[pd.DataFrame]:
     test_df = test_df.copy()
     # class-wise scores
     for class_, i in vocab.o2i.items():
-        test_df[f'{target_label}_{class_}'] = scores[:, i]
+        test_df[f'{target_label}_{class_}'] = scores[:, i].numpy()
 
     # class prediction (i.e. the class w/ the highest score for each tile)
     test_df[f'{target_label}_pred'] = vocab.map_ids(class_preds)
