@@ -156,8 +156,7 @@ def _simple_run(
         if exists_and_has_size(train_df_path := project_dir/'training_set.csv.zip'):
             logger.warning(
                 f'{train_df_path} already exists, using old training set!')
-            train_df = pd.read_csv(train_df_path)
-            train_df.is_valid = train_df.is_valid == 'True'
+            train_df = pd.read_csv(train_df_path, dtype={'is_valid': bool})
         elif train_cohorts_df is not None:
             train_df = _generate_train_df(
                 train_cohorts_df, target_label, na_values, n_bins, min_support, logger,
@@ -188,6 +187,8 @@ def _simple_run(
             test_df.to_csv(test_df_path, index=False, compression='zip')
         else:
             test_df = None
+
+        assert train_df.is_valid.any(), f'no validation set!'
 
         gpu_done = manager.Event()
         eval_reqs.append(gpu_done)

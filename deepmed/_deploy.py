@@ -50,24 +50,15 @@ def _deploy(learn: Learner, task: GPUTask) -> Optional[pd.DataFrame]:
         dl=test_dl, inner=True, with_decoded=True)
 
     test_df = test_df.copy()
-<<<<<<< HEAD
     if vocab is not None:
         # class-wise scores
         for class_, i in vocab.o2i.items():
-            test_df[f'{target_label}_{class_}'] = scores[:, i]
+            test_df[f'{target_label}_{class_}'] = scores[:, i].numpy()
 
         # class prediction (i.e. the class w/ the highest score for each tile)
         test_df[f'{target_label}_pred'] = vocab.map_ids(class_preds)
     else:
-        test_df[f'{target_label}_score'] = scores[:, 0]
-=======
-    # class-wise scores
-    for class_, i in vocab.o2i.items():
-        test_df[f'{target_label}_{class_}'] = scores[:, i].numpy()
-
-    # class prediction (i.e. the class w/ the highest score for each tile)
-    test_df[f'{target_label}_pred'] = vocab.map_ids(class_preds)
->>>>>>> main
+        test_df[f'{target_label}_score'] = scores[:, 0].numpy()
 
     test_df.to_csv(preds_path, index=False, compression='zip')
 
