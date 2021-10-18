@@ -19,7 +19,9 @@ def main():
             train_cohorts_df=train_cohorts_df,
             train=extract_features.Extract(),
             target_label='ER Status By IHC',
-        ))
+        ),
+        num_concurrent_tasks=0,
+    )
 
 
 if __name__ == '__main__':

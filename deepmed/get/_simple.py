@@ -1,3 +1,4 @@
+from functools import partial
 from multiprocessing.managers import SyncManager
 import random
 import logging
@@ -97,19 +98,21 @@ def _simple_run(
         min_support: int = 10,
         evaluators: Iterable[Evaluator] = [],
         max_class_count: Optional[Mapping[str, int]] = None,
+        **kwargs,
 ) -> Iterator[Task]:
     """Creates tasks for a basic test-deploy procedure.
 
-    This function will generate a single training and / or deployment task.  Due
-    to large in-patient similarities in slides it may be useful to only sample
-    a limited number of tiles will from each patient.  The task will have:
+    This function will generate a single training and / or deployment task.
+    Due to large in-patient similarities in slides it may be useful to only
+    sample a limited number of tiles will from each patient.  The task will
+    have:
 
-    -   A training set, if ``train_cohorts`` is not empty. The training set will
-        be balanced in such a way that each class is represented with a number
-        of tiles equal to that of the smallest class if ``balanced`` is
-        ``True``.
-    -   A testing set, if ``test_cohorts`` is not empty.  The testing set may be
-        unbalanced.
+    -   A training set, if ``train_cohorts`` is not empty. The training set
+        will be balanced in such a way that each class is represented with a
+        number of tiles equal to that of the smallest class if ``balanced``
+        is ``True``.
+    -   A testing set, if ``test_cohorts`` is not empty.  The testing set
+        may be unbalanced.
 
     If the target is continuous, it will be discretized.
 
@@ -117,12 +120,12 @@ def _simple_run(
         project_dir:  Path to save project data to.
         train_cohorts_df:  The cohorts to use for training.
         test_cohorts_df:  The cohorts to test on.
-        resample_each_epoch:  Whether to resample the training tiles used from
-            each slide each epoch.
+        resample_each_epoch:  Whether to resample the training tiles used
+            from each slide each epoch.
         max_train_tiles:  The maximum number of tiles per patient to use for
             training in each epoch.
-        max_valid_tiles:  The maximum number of validation tiles used in each
-            epoch.
+        max_valid_tiles:  The maximum number of validation tiles used in
+            each epoch.
         max_valid_tiles:  The maximum number of testing tiles used in each
             epoch.
         balance:  Whether the training set should be balanced.  Applies to
@@ -131,8 +134,10 @@ def _simple_run(
             validation during training.
         n_bins:  The number of bins to discretize continuous values into.
         na_values:  The class labels to consider as N/A values.
-        min_support:  The minimum amount of class samples required for the class
-            to be included in training.  Classes with less support are dropped.
+        min_support:  The minimum amount of class samples required for the
+            class to be included in training.  Classes with less support are
+            dropped.
+        kwargs:  Other arguments to be passed to train.
 
     Yields:
         A task to train and / or deploy a model on the given training and
@@ -197,7 +202,7 @@ def _simple_run(
             target_label=target_label,
             requirements=[],
             done=gpu_done,
-            train=train,
+            train=partial(train, **kwargs),
             deploy=deploy,
             train_df=train_df,
             test_df=test_df,
@@ -213,10 +218,12 @@ def _simple_run(
 
 
 def _generate_train_df(
-        train_cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable, n_bins: Optional[int],
-        min_support: int, logger, patient_label: str, valid_frac: float, seed: int,
-        train_df_path: Path, balance: bool, max_class_count: Optional[Mapping[str, int]],
-        resample_each_epoch: bool, max_train_tile_num: int, max_valid_tile_num: int) -> Optional[pd.DataFrame]:
+        train_cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable,
+        n_bins: Optional[int], min_support: int, logger, patient_label: str,
+        valid_frac: float, seed: int, train_df_path: Path, balance: bool,
+        max_class_count: Optional[Mapping[str, int]], resample_each_epoch: bool,
+        max_train_tile_num: int, max_valid_tile_num: int
+) -> Optional[pd.DataFrame]:
     train_cohorts_df = _prepare_cohorts(
         train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
 
@@ -298,11 +305,12 @@ def _generate_train_df(
 
 def _prepare_cohorts(
         cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable[str],
-        n_bins: Optional[int], min_support: int, logger: logging.Logger) -> pd.DataFrame:
+        n_bins: Optional[int], min_support: int, logger: logging.Logger
+) -> pd.DataFrame:
     """Preprocesses the cohorts.
 
-    Discretizes continuous targets and drops classes for which only few examples
-    are present.
+    Discretizes continuous targets and drops classes for which only few
+    examples are present.
     """
     cohorts_df = cohorts_df.copy()
     if not is_continuous(cohorts_df[target_label]):

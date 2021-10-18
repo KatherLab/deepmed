@@ -1,9 +1,11 @@
 #TODO having a train / deploy split for this is kind of silly... Try getting rid of it somehow!
 
 import logging
+from pathlib import Path
 from fastai.layers import AdaptiveConcatPool2d
 
 from fastai.losses import CrossEntropyLossFlat
+import torch
 from deepmed.utils import exists_and_has_size, factory
 from typing import Callable, Optional
 from fastai.data.block import DataBlock
@@ -11,7 +13,6 @@ from fastai.data.transforms import ColReader
 from fastai.vision.data import ImageBlock
 from fastai.vision.learner import cnn_learner
 from torch import nn
-from fastai.learner import Learner
 from fastai.vision.augment import Resize
 from fastai.vision.models import resnet18
 import pandas as pd
@@ -30,7 +31,7 @@ def _extract(
         return None
     elif exists_and_has_size(features_path := task.path/'features.csv.zip'):
         logger.warning(f'{features_path} already exists, skipping deployment...')
-        return pd.read_csv(features_path, low_memory=False)
+        return None
 
     dblock = DataBlock(blocks=(ImageBlock),
                        get_x=ColReader('tile_path'),
@@ -45,13 +46,12 @@ def _extract(
     test_dl = learn.dls.test_dl(task.train_df)
     feats, _ = learn.get_preds(dl=test_dl, act=nn.Identity())
     feats = feats.squeeze()
-    feat_no = feats.shape[-1]//2
-    feat_df = pd.DataFrame(feats.squeeze(),
-                           columns=[f'max_{i}' for i in range(feat_no)] \
-                                  +[f'avg_{i}' for i in range(feat_no)])
 
-    feat_df = pd.concat([task.train_df, feat_df], axis=1)
-    feat_df.to_csv(features_path, compression='zip', index=False)
+    slides = task.train_df.tile_path.map(lambda x: Path(x).parent.name)
+    (task.path/'features').mkdir(exist_ok=True)
+    for slide in slides.unique():
+        slide_feats = feats[slides == slide]
+        torch.save(slide_feats, task.path/'features'/f'{slide}.pt')
 
     return None
 
