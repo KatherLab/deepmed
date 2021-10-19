@@ -19,6 +19,7 @@ def main():
             train_cohorts_df=train_cohorts_df,
             train=extract_features.Extract(),
             target_label='ER Status By IHC',
+            feature_save_path='extracted_features',
         ),
         num_concurrent_tasks=0,
     )
