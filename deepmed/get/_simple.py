@@ -88,9 +88,9 @@ def _simple_run(
         train: Trainer = Train(),
         deploy: Deployer = Deploy(),
         resample_each_epoch: bool = False,
-        max_train_tile_num: int = 128,
-        max_valid_tile_num: int = 256,
-        max_test_tile_num: int = 512,
+        max_train_tile_num: Optional[int] = 128,
+        max_valid_tile_num: Optional[int] = 256,
+        max_test_tile_num: Optional[int] = 512,
         seed: int = 0,
         valid_frac: float = .2,
         n_bins: Optional[int] = 2,
@@ -122,12 +122,12 @@ def _simple_run(
         test_cohorts_df:  The cohorts to test on.
         resample_each_epoch:  Whether to resample the training tiles used
             from each slide each epoch.
-        max_train_tiles:  The maximum number of tiles per patient to use for
-            training in each epoch.
-        max_valid_tiles:  The maximum number of validation tiles used in
-            each epoch.
-        max_valid_tiles:  The maximum number of testing tiles used in each
-            epoch.
+        max_train_tile_num:  The maximum number of tiles per patient to use
+            for training in each epoch or ``None`` for no subsampling.
+        max_valid_tile_num:  The maximum number of validation tiles used in
+            each epoch or ``None`` for no subsampling.
+        max_valid_tile_num:  The maximum number of testing tiles used in
+            each epoch or ``None`` for no subsampling.
         balance:  Whether the training set should be balanced.  Applies to
             categorical targets only.
         valid_frac:  The fraction of patients which will be reserved for
@@ -186,7 +186,7 @@ def _simple_run(
 
             logger.info(f'Testing slide counts: {len(test_cohorts_df)}')
             test_df = _get_tiles(
-                cohorts_df=test_cohorts_df, max_tile_num=max_test_tile_num, seed=seed, logger=logger)
+                cohorts_df=test_cohorts_df, max_tile_num=max_test_tile_num, logger=logger)
 
             train_df_path.parent.mkdir(parents=True, exist_ok=True)
             test_df.to_csv(test_df_path, index=False, compression='zip')
@@ -268,7 +268,7 @@ def _generate_train_df(
     logger.info(f'Searching for training tiles')
     train_df = _get_tiles(
         cohorts_df=train_cohorts_df[~train_cohorts_df.is_valid],
-        max_tile_num=max_train_tile_num, seed=seed, logger=logger)
+        max_tile_num=max_train_tile_num, logger=logger)
 
     # if we want the training procedure to resample a slide's tiles every epoch,
     # we have to supply a slide path instead of the tile path
@@ -277,7 +277,7 @@ def _generate_train_df(
 
     valid_df = _get_tiles(
         cohorts_df=train_cohorts_df[train_cohorts_df.is_valid],
-        max_tile_num=max_valid_tile_num, seed=seed, logger=logger)
+        max_tile_num=max_valid_tile_num, logger=logger)
 
     # restrict to classes present in training set
     train_classes = train_df[target_label].unique()
@@ -357,8 +357,8 @@ def _discretize(xs: Sequence[Number], n_bins: int) -> Sequence[str]:
 
 
 def _get_tiles(
-        cohorts_df: pd.DataFrame, max_tile_num: int, seed: int, logger: logging.Logger) \
-        -> pd.DataFrame:
+        cohorts_df: pd.DataFrame, max_tile_num: Optional[int], logger: logging.Logger
+) -> pd.DataFrame:
     """Create df containing patient, tiles, other data."""
     tiles_dfs = []
     for _, data in tqdm(cohorts_df.groupby('PATIENT')):
@@ -366,7 +366,8 @@ def _get_tiles(
                  for tile_dir in data.slide_path
                  if tile_dir.exists()
                  for file in tile_dir.iterdir()]
-        tiles = random.sample(tiles, min(len(tiles), max_tile_num))
+        if max_tile_num is not None:
+            tiles = random.sample(tiles, min(len(tiles), max_tile_num))
         tiles_df = pd.DataFrame(tiles, columns=['slide_path', 'tile_path'])
 
         tiles_dfs.append(data.merge(
