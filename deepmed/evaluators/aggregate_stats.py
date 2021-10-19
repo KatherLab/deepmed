@@ -57,7 +57,8 @@ def _aggregate_stats(
         header, index_col = _get_header_and_index_col(df_path)
         dfs.append(pd.read_csv(df_path, header=header, index_col=index_col))
 
-    assert dfs, 'could not find any stats.csvs to aggregate!'
+    assert dfs, 'could not find any stats.csvs to aggregate!  ' \
+        'Did you accidentally use AggregateStats on the bottommost evaluator level?'
     assert all(df.index.names == dfs[0].index.names for df in dfs[1:]), \
         'index labels differ between stats.csvs to aggregate over!'
     stats_df = pd.concat(
