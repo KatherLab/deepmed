@@ -35,7 +35,7 @@ def _crossval(
         manager: SyncManager,
         folds: int = 3,
         seed: int = 0,
-        n_bins: int = 2,
+        n_bins: Optional[int] = 2,
         na_values: Iterable[Any] = [],
         min_support: int = 10,
         patient_label: str = 'PATIENT',
@@ -70,7 +70,7 @@ def _crossval(
     project_dir.mkdir(parents=True, exist_ok=True)
 
     if exists_and_has_size(folds_path := project_dir/'folds.csv.zip'):
-        folded_df = pd.read_csv(folds_path, dtype=str)
+        folded_df = pd.read_csv(folds_path)
         folded_df.slide_path = folded_df.slide_path.map(Path)
     else:
         cohorts_df = _prepare_cohorts(
@@ -100,6 +100,7 @@ def _crossval(
             manager=manager,
             train_cohorts_df=folded_df[folded_df.fold != fold],
             test_cohorts_df=folded_df[folded_df.fold == fold],
+            n_bins=n_bins,
             min_support=0,
             **kwargs)
     )
