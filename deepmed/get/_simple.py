@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 from enum import Enum, auto
 from functools import partial
+=======
+from functools import lru_cache, partial
+from multiprocessing.managers import SyncManager
+>>>>>>> Minor improvements
 import random
 import logging
 from typing import Callable, Iterable, Sequence, Iterator, Optional, Any, Union, Mapping
@@ -32,8 +37,8 @@ PathLike = Union[str, Path]
 
 def cohort(
         tiles_path: PathLike, clini_path: PathLike, slide_path: PathLike,
-        patient_label: str = 'PATIENT', slidename_label: str = 'FILENAME') \
-        -> pd.DataFrame:
+        patient_label: str = 'PATIENT', slidename_label: str = 'FILENAME'
+) -> pd.DataFrame:
     """Creates a cohort df from a slide and a clini table.
 
     Args:
@@ -221,8 +226,8 @@ def _simple_run(
                 test_cohorts_df, target_label, na_values, n_bins=None, min_support=0, logger=logger)
 
             logger.info(f'Testing slide counts: {len(test_cohorts_df)}')
-            test_df = get_items(dataset_type=DatasetType.TEST,
-                                cohorts_df=test_cohorts_df, logger=logger)
+            test_df = get_items(
+                dataset_type=DatasetType.TEST, cohorts_df=test_cohorts_df, logger=logger)
 
             train_df_path.parent.mkdir(parents=True, exist_ok=True)
             test_df.to_csv(test_df_path, index=False, compression='zip')
@@ -252,9 +257,18 @@ def _simple_run(
 
 
 def _generate_train_df(
-        train_cohorts_df: pd.DataFrame, target_label: str, get_items: Callable,na_values: Iterable,
-        n_bins: Optional[int], min_support: int, logger, patient_label: str, valid_frac: float,
-        train_df_path: Path, balance: bool, max_class_count: Optional[Mapping[str, int]],
+        train_cohorts_df: pd.DataFrame,
+        target_label: str,
+        get_items: Callable,
+        na_values: Iterable[Any],
+        n_bins: Optional[int],
+        min_support: int,
+        logger,
+        patient_label: str,
+        valid_frac: float,
+        train_df_path: Path,
+        balance: bool,
+        max_class_count: Optional[Mapping[str, int]],
 ) -> Optional[pd.DataFrame]:
     train_cohorts_df = _prepare_cohorts(
         train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
@@ -289,10 +303,10 @@ def _generate_train_df(
     patients = train_cohorts_df.groupby(patient_label)[target_label].first()
     if is_continuous(train_cohorts_df[target_label]):
         _, valid_patients = train_test_split(
-            patients.index, test_size=valid_frac)
+            patients.index, test_size=valid_frac, shuffle=True)
     else:
         _, valid_patients = train_test_split(
-            patients.index, test_size=valid_frac, stratify=patients)
+            patients.index, test_size=valid_frac, stratify=patients, shuffle=True)
 
     train_cohorts_df['is_valid'] = train_cohorts_df[patient_label].isin(
         valid_patients)
