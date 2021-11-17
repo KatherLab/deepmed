@@ -33,7 +33,6 @@ from fastai.vision.learner import _add_norm, _default_meta
 from torchvision.models.resnet import resnet18
 
 from .utils import factory, log_defaults
-from .types import GPUTask
 
 __all__ = ['Train']
 
@@ -141,7 +140,7 @@ class Category:
 
 @log_defaults
 def _train(
-        task: GPUTask, /,
+        task: 'GPUTask', /,
         arch: Callable[[bool], nn.Module] = resnet18,
         batch_size: int = 64,
         max_epochs: int = 10,

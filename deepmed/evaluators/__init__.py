@@ -4,6 +4,8 @@ from .roc import *
 from .adapters import *
 from .top_tiles import *
 from .metrics import *
+from .gradcam import *
 
 __all__ = ['Grouped', 'SubGrouped', 'AggregateStats', 'OnDiscretized', 'Roc', 'GroupMode',
-           'Heatmap', 'TopTiles', 'F1', 'auroc', 'count', 'p_value', 'ConfusionMatrix', 'r2']
+           'Heatmap', 'TopTiles', 'F1', 'auroc', 'count', 'p_value', 'ConfusionMatrix', 'r2',
+           'gradcam']

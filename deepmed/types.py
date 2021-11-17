@@ -35,6 +35,7 @@ class Task(ABC):
     requirements: Iterable[Event]
     """List of events which have to have occurred before this task can be
     started."""
+
     done: Event
     """Whether this task has concluded."""
 
@@ -202,7 +203,7 @@ def _generate_preds_df(result_dir: Path) -> Optional[pd.DataFrame]:
         for df_path in result_dir.glob('**/predictions.csv.zip'):
             df = pd.read_csv(df_path, low_memory=False)
             # column which tells us which subset these predictions are from
-            df[f'subset_{result_dir.name}'] = df_path.name
+            #TODO df[f'subset_{result_dir.name}'] = df_path.name
             dfs.append(df)
 
         if not dfs:
