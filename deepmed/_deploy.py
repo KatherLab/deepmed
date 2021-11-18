@@ -64,7 +64,7 @@ def _discretize_if_necessary(test_df: pd.DataFrame, target_label: str, vocab: It
     interval = re.compile(
         r'^\[([+-]?\d+\.?\d*(?:e[+-]?\d+|)|-inf),([+-]?\d+\.?\d*(?:e[+-]?\d+|)|inf)\)$')
     if is_continuous(test_df[target_label]) and \
-            all(interval.match(class_) is not None for class_ in vocab):
+            all(isinstance(class_, str) and interval.match(class_) is not None for class_ in vocab):
 
         # extract thresholds from vocab
         threshs = [*(interval.match(class_).groups()[0]  # type: ignore
