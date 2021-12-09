@@ -73,7 +73,7 @@ def _heatmap(
             else:
                 # find a wsi file with the slide
                 fn = next(filter(Path.exists,
-                                 ((Path(wsi_path)/slide_name).with_suffix(suffix)
+                                 ((Path(wsi_path)/str(slide_name)).with_suffix(suffix)
                                   for wsi_path in wsi_paths
                                   for suffix in wsi_suffixes)),
                                  None)
@@ -114,8 +114,8 @@ def _heatmap(
                     legend = axs[1].legend(
                         title=target_label, handles=legend_elements, bbox_to_anchor=(1, 1), loc='upper left')
 
-            (outdir/true_label).mkdir(exist_ok=True, parents=True)
-            fig.savefig((outdir/true_label/slide_name).with_suffix(format), bbox_extra_artists=[legend], bbox_inches='tight')
+            (outdir/str(true_label)).mkdir(exist_ok=True, parents=True)
+            plt.savefig((outdir/str(true_label)/slide_name).with_suffix(format), bbox_extra_artists=[legend], bbox_inches='tight')
             plt.close('all')
         except Exception as exp:
             logger.exception(exp)
