@@ -73,7 +73,7 @@ def _heatmap(
             else:
                 # find a wsi file with the slide
                 fn = next(filter(Path.exists,
-                                 ((Path(wsi_path)/slide_name).with_suffix(suffix)
+                                 ((Path(wsi_path)/str(slide_name)).with_suffix(suffix)
                                   for wsi_path in wsi_paths
                                   for suffix in wsi_suffixes)),
                                  None)
