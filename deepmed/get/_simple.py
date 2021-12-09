@@ -193,7 +193,7 @@ def _simple_run(
         else:
             test_df = None
 
-        assert train_df.is_valid.any(), f'no validation set!'
+        assert train_df is None or train_df.is_valid.any(), f'no validation set!'
 
         gpu_done = manager.Event()
         eval_reqs.append(gpu_done)
@@ -280,8 +280,9 @@ def _generate_train_df(
         max_tile_num=max_valid_tile_num, logger=logger)
 
     # restrict to classes present in training set
-    train_classes = train_df[target_label].unique()
-    valid_df = valid_df[valid_df[target_label].isin(train_classes)]
+    if not is_continuous(train_df[target_label]):
+        train_classes = train_df[target_label].unique()
+        valid_df = valid_df[valid_df[target_label].isin(train_classes)]
 
     logger.debug(
         f'Training tiles: {dict(train_df[target_label].value_counts())}')

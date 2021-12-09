@@ -1,15 +1,15 @@
 import logging
 from multiprocessing.managers import SyncManager
-from typing import Iterable, Iterator, Any
+from typing import Iterable, Iterator, Any, Optional
 from pathlib import Path
 from typing_extensions import Protocol
 
 import pandas as pd
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, KFold
 
 from .._experiment import Task, EvalTask
 from ._simple import _prepare_cohorts
-from ..utils import exists_and_has_size, log_defaults, factory
+from ..utils import exists_and_has_size, log_defaults, is_continuous, factory
 from ..get import Evaluator
 
 
@@ -35,7 +35,7 @@ def _crossval(
         manager: SyncManager,
         folds: int = 3,
         seed: int = 0,
-        n_bins: int = 2,
+        n_bins: Optional[int] = 2,
         na_values: Iterable[Any] = [],
         min_support: int = 10,
         patient_label: str = 'PATIENT',
@@ -70,7 +70,7 @@ def _crossval(
     project_dir.mkdir(parents=True, exist_ok=True)
 
     if exists_and_has_size(folds_path := project_dir/'folds.csv.zip'):
-        folded_df = pd.read_csv(folds_path, dtype=str)
+        folded_df = pd.read_csv(folds_path)
         folded_df.slide_path = folded_df.slide_path.map(Path)
     else:
         cohorts_df = _prepare_cohorts(
@@ -86,7 +86,7 @@ def _crossval(
 
         folded_df = _create_folds(
             cohorts_df=cohorts_df, target_label=target_label, folds=folds, seed=seed,
-            patient_label=patient_label)
+            patient_label=patient_label, n_bins=n_bins)
         folded_df.to_csv(folds_path, compression='zip')
 
     # accumulate first to ensure training / testing set data is saved
@@ -100,6 +100,7 @@ def _crossval(
             manager=manager,
             train_cohorts_df=folded_df[folded_df.fold != fold],
             test_cohorts_df=folded_df[folded_df.fold == fold],
+            n_bins=n_bins,
             min_support=0,
             **kwargs)
     )
@@ -117,11 +118,13 @@ def _crossval(
 
 
 def _create_folds(
-        cohorts_df: pd.DataFrame, target_label: str, folds: int, seed: int, patient_label: str) \
-        -> pd.DataFrame:
+        cohorts_df: pd.DataFrame, target_label: str, folds: int, seed: int, patient_label: str, n_bins: Optional[int]
+) -> pd.DataFrame:
     """Adds a ``fold`` column."""
 
-    kf = StratifiedKFold(n_splits=folds, random_state=seed, shuffle=True)
+    kf = (StratifiedKFold(n_splits=folds, random_state=seed, shuffle=True)
+          if n_bins is not None or not is_continuous(cohorts_df[target_label])
+          else KFold(n_splits=folds, random_state=seed, shuffle=True))
 
     # Pepare our dataframe
     # We enumerate each fold; this way, the training set for the `k`th iteration can be easily

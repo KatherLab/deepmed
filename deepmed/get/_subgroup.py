@@ -35,15 +35,19 @@ def _subgroup(
         cohort_df_arg_names:  The keys of cohort_dfs passed as kwargs to adapted
             task getters.
     """
+    assert any(arg_name in kwargs for arg_name in cohort_df_arg_names), \
+        f'none of {cohort_df_arg_names} given to `Subgroup()`!'
     groups = {
         cohorts_df_name: kwargs[cohorts_df_name].apply(subgrouper, axis=1)
         for cohorts_df_name in cohort_df_arg_names
         if cohorts_df_name in kwargs
     }
+    assert groups, 'no subgroup instances found!'
     group_names = {
         x
         for gs in groups.values()
         for x in gs.unique()
+        if x is not None
     }
 
     tasks = (
