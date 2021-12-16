@@ -54,6 +54,7 @@ class Train:
     """Trains a single model.
 
     Args:
+        batch_size:  The number of training samples used through the network during one forward and backward pass.
         task:  The task to train a model for.
         arch:  The architecture of the model to train.
         max_epochs:  The absolute maximum number of epochs to train.

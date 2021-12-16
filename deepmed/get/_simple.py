@@ -126,7 +126,7 @@ def _simple_run(
             for training in each epoch or ``None`` for no subsampling.
         max_valid_tile_num:  The maximum number of validation tiles used in
             each epoch or ``None`` for no subsampling.
-        max_valid_tile_num:  The maximum number of testing tiles used in
+        max_test_tile_num:  The maximum number of testing tiles used in
             each epoch or ``None`` for no subsampling.
         balance:  Whether the training set should be balanced.  Applies to
             categorical targets only.

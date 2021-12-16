@@ -54,7 +54,7 @@ def _f1(target_label: str, preds_df: pd.DataFrame, _result_dir: Path,
 
     Args:
         min_tpr:  If min_tpr is not given, a threshold which maximizes the F1
-        score is selected; otherwise the threshold which guarantees a tpr of at
+        score is selected; otherwise, the threshold which guarantees a tpr of at
         least min_tpr is used.
     """
     y_true = preds_df[target_label]

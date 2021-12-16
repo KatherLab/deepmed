@@ -26,10 +26,10 @@ def _top_tiles(
     best-classified patients.
 
     Args:
-        best_patients:  Wether to select the best or worst n patients.
+        best_patients:  Whether to select the best or worst n patients.
         best_tiles:  Whether to select the highest or lowest scoring tiles.  If
             set to ``None``, then the same as ``best_patients``.
-        save_images:  Also save the tiles seperately.
+        save_images:  Also save the tiles separately.
     """
     # set `best_tiles` to `best_patients` if undefined
     best_tiles = best_tiles if best_tiles is not None else best_patients
