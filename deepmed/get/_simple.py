@@ -187,7 +187,7 @@ def _simple_run(
         else:
             test_df = None
 
-        assert train_df.is_valid.any(), f'no validation set!'
+        assert train_df is None or train_df.is_valid.any(), f'no validation set!'
 
         gpu_done = manager.Event()
         eval_reqs.append(gpu_done)
