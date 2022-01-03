@@ -16,7 +16,8 @@ reproduced by this pipeline are:
     https://www.nature.com/articles/s41416-020-01122-x
 
 This pipeline is modular, which means that new methods for pre-/postprocessing
-or new AI methods can be easily integrated.
+or new AI methods can be easily integrated. For an extensive protocol including many 
+example scripts, please see https://www.biorxiv.org/content/10.1101/2021.12.19.473344v1 
 
 
 ## Installation
