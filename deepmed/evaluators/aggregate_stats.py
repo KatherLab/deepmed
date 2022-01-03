@@ -126,6 +126,8 @@ def _get_groupby_levels(df: pd.DataFrame, over: Iterable[Union[str, int]]) -> Se
     i.e. the indices which are *not* index 1 and the index with the name
     ``fold``.
     """
+    assert not isinstance(over, str), f'`over` has to be a list of labels.  Try `over=[{over}]`.'
+
     # check if any of the labels appears zero / more than one time
     assert (label := next((label
                            for label in over

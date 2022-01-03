@@ -21,15 +21,28 @@ def _parameterize(
         *args,
         project_dir: Path,
         manager: SyncManager,
-        parameterizations: Iterable[Mapping[str, Any]],
+        parameterizations: Mapping[str, Mapping[str, Any]],
         parameterize_evaluators: Iterable[Evaluator] = [],
         **kwargs) -> Iterator[Task]:
-    eval_reqirements = []
-    for parameterization in parameterizations:
-        path = project_dir/_make_dir_name(parameterization)
+    """Starts a family of runs with different parameterizations.
 
+    Args:
+        parameterizations:  A mapping from parameterization descriptions (i.e.
+            descriptive names) to kwargs mappings.  For each element, ``get``
+            will be invoked with these kwargs.
+        parameterize_evaluators:  Evaluators to run at the end of all
+            parameterized runs.
+        kwargs:  Additional arguments to pass to each parameterized run.  If a
+            keyword argument appears both in ``kwargs`` and in a
+            parameterization, the parameterization's argument takes precedence.
+
+    Yields:
+        The tasks ``get`` would yield for each of the parameterizations.
+    """
+    eval_reqirements = []
+    for name, parameterization in parameterizations.items():
         for task in get(
-                *args, project_dir=path, manager=manager,
+                *args, project_dir=project_dir/name, manager=manager,
                 # overwrite default ``kwargs``` w/ parameterization ones, if they were given
                 **{**kwargs, **parameterization}):
             eval_reqirements.append(task.done)
@@ -41,10 +54,6 @@ def _parameterize(
         requirements=eval_reqirements,
         evaluators=parameterize_evaluators,
         done=manager.Event())
-
-
-def _make_dir_name(parameters: Mapping[str, Any]) -> str:
-    return '; '.join(f'{k}={v!r}' for k, v in sorted(parameters.items()))
 
 
 Parameterize = factory(_parameterize)

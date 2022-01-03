@@ -20,16 +20,16 @@ def main():
             get.SimpleRun(),
             cohorts_df=train_cohorts_df,
             target_label='TMB (nonsynonymous)',
-            parameterizations=[
-                {'folds': folds,
-                 'train': Train(patience=patience, batch_size=bs, max_epochs=1)}
-                for patience in [5]#, 8]
-                for bs in [64]#, 128]
-                for folds in [3]#, 5]
-            ],
-            #evaluators=[Grouped(count)],
-            #crossval_evaluators=[AggregateStats(over=[0])],
-            #parameterize_evaluators=[AggregateStats()],
+            parameterizations={
+                f'{patience=} {bs=} {folds=}': {
+                    'folds': folds, 'train': Train(patience=patience, batch_size=bs, max_epochs=1)}
+                for patience in [5, 8]
+                for bs in [64, 128]
+                for folds in [3, 5]
+            },
+            evaluators=[Grouped(count)],
+            crossval_evaluators=[AggregateStats(over=[0])],
+            parameterize_evaluators=[AggregateStats()],
         ),
     )
 
