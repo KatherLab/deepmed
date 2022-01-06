@@ -42,7 +42,6 @@ def main():
             ),
         ),
         devices={'cuda:0': 4},
-        num_concurrent_tasks=0,
     )
 
 

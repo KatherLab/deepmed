@@ -1,5 +1,4 @@
 import logging
-from multiprocessing.managers import SyncManager
 from typing import Iterable, Iterator, Any, Optional
 from pathlib import Path
 from typing_extensions import Protocol
@@ -18,7 +17,7 @@ class CrossvalBaseTaskGetter(Protocol):
 
     def __call__(
             self, *args,
-            project_dir: Path, manager: SyncManager, target_label: str,
+            project_dir: Path, target_label: str,
             train_cohorts_df: pd.DataFrame, test_cohorts_df: pd.DataFrame, min_support: int,
             **kwargs) \
             -> Iterator[Task]:
@@ -32,7 +31,6 @@ def _crossval(
         project_dir: Path,
         target_label: str,
         cohorts_df: pd.DataFrame,
-        manager: SyncManager,
         folds: int = 3,
         seed: int = 0,
         n_bins: Optional[int] = 2,
@@ -97,7 +95,6 @@ def _crossval(
             *args,
             project_dir=project_dir/f'fold_{fold}',
             target_label=target_label,
-            manager=manager,
             train_cohorts_df=folded_df[folded_df.fold != fold],
             test_cohorts_df=folded_df[folded_df.fold == fold],
             n_bins=n_bins,
@@ -113,8 +110,7 @@ def _crossval(
         path=project_dir,
         target_label=target_label,
         requirements=requirements,
-        evaluators=crossval_evaluators,
-        done=manager.Event())
+        evaluators=crossval_evaluators)
 
 
 def _create_folds(

@@ -1,4 +1,3 @@
-from multiprocessing.managers import SyncManager
 from pathlib import Path
 from typing import Iterable, Iterator
 
@@ -12,7 +11,6 @@ def _multi_target(
         get: ParameterizeBaseTaskGetter,
         *args,
         project_dir: Path,
-        manager: SyncManager,
         target_labels: Iterable[str],
         multi_target_evaluators: Iterable[Evaluator] = [],
         **kwargs) -> Iterator[Task]:
@@ -34,7 +32,7 @@ def _multi_target(
         by a the name of the target label.
     """
     return _parameterize(
-        get, *args, project_dir=project_dir, manager=manager,
+        get, *args, project_dir=project_dir,
         parameterizations={
             target_label: {'target_label': target_label}
             for target_label in target_labels},

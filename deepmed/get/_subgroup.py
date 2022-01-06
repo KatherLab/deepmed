@@ -1,5 +1,3 @@
-import logging
-from multiprocessing.managers import SyncManager
 from typing import Iterable, Iterator, Callable, Union
 from pathlib import Path
 
@@ -15,7 +13,6 @@ def _subgroup(
         get,
         *args,
         project_dir: Path,
-        manager: SyncManager,
         target_label: str,
         subgrouper: Callable[[pd.Series], Union[str, None]],
         subgroup_evaluators: Iterable[Evaluator] = [],
@@ -57,7 +54,6 @@ def _subgroup(
             *args,
             project_dir=project_dir/group_name,
             target_label=target_label,
-            manager=manager,
             **{**kwargs,
                **{
                    cohorts_df_name: kwargs[cohorts_df_name][gs == group_name]
@@ -73,7 +69,6 @@ def _subgroup(
         path=project_dir,
         target_label=target_label,
         requirements=requirements,
-        evaluators=subgroup_evaluators,
-        done=manager.Event())
+        evaluators=subgroup_evaluators)
 
 Subgroup = factory(_subgroup)

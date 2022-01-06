@@ -1,4 +1,3 @@
-from multiprocessing.managers import SyncManager
 from pathlib import Path
 from typing import Iterable, Iterator, Mapping, Any
 from typing_extensions import Protocol
@@ -12,7 +11,7 @@ class ParameterizeBaseTaskGetter(Protocol):
 
     def __call__(
             self, *args,
-            project_dir: Path, manager: SyncManager, **kwargs) -> Iterator[Task]:
+            project_dir: Path, **kwargs) -> Iterator[Task]:
         ...
 
 
@@ -20,7 +19,6 @@ def _parameterize(
         get: ParameterizeBaseTaskGetter,
         *args,
         project_dir: Path,
-        manager: SyncManager,
         parameterizations: Mapping[str, Mapping[str, Any]],
         parameterize_evaluators: Iterable[Evaluator] = [],
         **kwargs) -> Iterator[Task]:
@@ -42,7 +40,7 @@ def _parameterize(
     eval_reqirements = []
     for name, parameterization in parameterizations.items():
         for task in get(
-                *args, project_dir=project_dir/name, manager=manager,
+                *args, project_dir=project_dir/name,
                 # overwrite default ``kwargs``` w/ parameterization ones, if they were given
                 **{**kwargs, **parameterization}):
             eval_reqirements.append(task.done)
@@ -52,8 +50,7 @@ def _parameterize(
         path=project_dir,
         target_label=None,  # TODO remove target label from eval task
         requirements=eval_reqirements,
-        evaluators=parameterize_evaluators,
-        done=manager.Event())
+        evaluators=parameterize_evaluators)
 
 
 Parameterize = factory(_parameterize)

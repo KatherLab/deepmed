@@ -1,18 +1,18 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from deepmed.utils import exists_and_has_size
+import threading
+from deepmed.utils import exists_and_has_size, factory
 import logging
 from itertools import cycle
 
 from typing import Optional, Callable, Iterator, Union, Mapping
 from typing_extensions import Protocol
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from threading import Event
 from fastai.learner import Learner
 
 import pandas as pd
-from multiprocessing.managers import BaseManager
 from multiprocessing.synchronize import Semaphore
 
 from typing import Iterable
@@ -36,7 +36,7 @@ class Task(ABC):
     """List of events which have to have occurred before this task can be
     started."""
 
-    done: Event
+    done: Event = field(default_factory=threading.Event, init=False)
     """Whether this task has concluded."""
 
     def run(self) -> None:
@@ -53,7 +53,7 @@ class Task(ABC):
 
 class TaskGetter(Protocol):
     def __call__(
-        self, project_dir: Path, manager: BaseManager, capacities: Mapping[Union[int, str], Semaphore]
+        self, project_dir: Path, capacities: Mapping[Union[int, str], Semaphore]
     ) -> Iterator[Task]:
         """A function which creates a series of task.
 

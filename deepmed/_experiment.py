@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 
 import logging
-import multiprocessing as mp
-import traceback
-
+import threading
 from typing import Mapping, Union, Optional
 from pathlib import Path
-from multiprocessing import Manager
 import concurrent
-
 from fastcore.parallel import ThreadPoolExecutor
 
 from .types import *
@@ -56,24 +52,23 @@ def do_experiment(
 
     logger.info('Getting tasks')
 
-    with Manager() as manager:
-        # semaphores which tell us which GPUs still have resources available
-        capacities = {
-            device: manager.Semaphore(capacity)   # type: ignore
-            for device, capacity in devices.items()}
-        tasks = get(project_dir=project_dir,
-                    manager=manager, capacities=capacities)
+    # semaphores which tell us which GPUs still have resources available
+    capacities = {
+        device: threading.Semaphore(capacity)   # type: ignore
+        for device, capacity in devices.items()}
+    tasks = get(project_dir=project_dir,
+                capacities=capacities)
 
-        try:
-            if num_concurrent_tasks == 0:
-                    for task in tasks:
-                        task.run()
-            else:
-                with ThreadPoolExecutor(num_concurrent_tasks) as e:
-                    futures = [e.submit(Task.run, task) for task in tasks]
-                    for future in concurrent.futures.as_completed(futures):
-                        future.result() # consume results to trigger exceptions
+    try:
+        if num_concurrent_tasks == 0:
+            for task in tasks:
+                task.run()
+        else:
+            with ThreadPoolExecutor(num_concurrent_tasks) as e:
+                futures = [e.submit(Task.run, task) for task in tasks]
+                for future in concurrent.futures.as_completed(futures):
+                    future.result() # consume results to trigger exceptions
 
-        except Exception as e:
-            if not keep_going:
-                raise e
+    except Exception as e:
+        if not keep_going:
+            raise e

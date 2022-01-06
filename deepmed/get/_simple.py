@@ -1,5 +1,4 @@
 from functools import partial
-from multiprocessing.managers import SyncManager
 import random
 import logging
 from typing import Iterable, Sequence, Iterator, Optional, Any, Union, Mapping
@@ -11,7 +10,6 @@ import torch
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn import preprocessing
-from torch._C import _is_torch_function_enabled
 from tqdm import tqdm
 import numpy as np
 
@@ -78,7 +76,6 @@ def cohort(
 @log_defaults
 def _simple_run(
         project_dir: Path,
-        manager: SyncManager,
         target_label: str,
         capacities: Mapping[Union[int, str], Semaphore],
         train_cohorts_df: Optional[pd.DataFrame] = None,
@@ -145,7 +142,6 @@ def _simple_run(
     """
     logger = logging.getLogger(str(project_dir))
 
-    eval_reqs = []
     if exists_and_has_size(preds_df_path := project_dir/'predictions.csv.zip'):
         logger.warning(
             f'{preds_df_path} already exists, skipping training/deployment!')
@@ -153,7 +149,6 @@ def _simple_run(
         yield EvalTask(
             path=project_dir,
             target_label=target_label,
-            done=manager.Event(),
             requirements=[],
             evaluators=evaluators)
     else:
@@ -195,25 +190,23 @@ def _simple_run(
 
         assert train_df is None or train_df.is_valid.any(), f'no validation set!'
 
-        gpu_done = manager.Event()
-        eval_reqs.append(gpu_done)
-        yield GPUTask(
+        gpu_task = GPUTask(
             path=project_dir,
             target_label=target_label,
             requirements=[],
-            done=gpu_done,
             train=partial(train, **kwargs),
             deploy=deploy,
             train_df=train_df,
             test_df=test_df,
             capacities=capacities)
 
+        yield gpu_task
+
         if test_df is not None:
             yield EvalTask(
                 path=project_dir,
                 target_label=target_label,
-                done=manager.Event(),
-                requirements=eval_reqs,
+                requirements=[gpu_task.done],
                 evaluators=evaluators)
 
 
