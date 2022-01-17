@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import tempfile
 from PIL import Image
@@ -19,6 +20,10 @@ import pandas as pd
 import numpy as np
 import h5py
 import re
+import torch
+from fastdownload import FastDownload
+from fastai.data.external import fastai_cfg
+import fastai
 from ..types import PathLike, Task
 
 
@@ -27,7 +32,7 @@ def _extract(
         tile_dir: PathLike,
         feat_dir: Optional[PathLike] = None,
         arch: Callable[[bool], nn.Module] = resnet18,
-        num_workers: int = 0,
+        num_workers: int = 32 if os.name == 'posix' else 0,
         **kwargs
 ) -> Iterator[Task]:
     tile_dir = Path(tile_dir)
@@ -44,6 +49,18 @@ def _extract(
 Extract = factory(_extract)
 
 
+def PretrainedModel(url, arch=resnet18) -> nn.Module:
+    model = arch(pretrained=False)
+    d = FastDownload(fastai_cfg(), module=fastai.data, base='~/.fastai')
+    path = d.download(url)
+    checkpoint = torch.load(path)
+
+    missing = model.load_state_dict(checkpoint['state_dict'], strict=False)
+    assert set(missing.missing_keys) == {'fc.weight', 'fc.bias'}
+
+    return lambda pretrained: model
+
+
 @dataclass
 class ExtractTask(Task):
     slides: Iterable[Path]
@@ -53,7 +70,7 @@ class ExtractTask(Task):
     def do_work(self):
         for slides in (slide_pbar := tqdm(list(batch(self.slides, n=256)), leave=False)):
             learn = feature_extractor(
-                arch=self.arch, num_workers=self.num_workers, item_tfms=RandomCrop(224))
+                arch=self.arch, num_workers=self.num_workers, item_tfms=Resize(224))
             slide_pbar.set_description(slides[0].name)
             do_slides(slides, learn, self.path)
 
