@@ -43,8 +43,10 @@ class Task(ABC):
         """Start this task."""
         for reqirement in self.requirements:
             reqirement.wait()
-        self.do_work()
-        self.done.set()
+        try:
+            self.do_work()
+        finally:
+            self.done.set()
 
     @abstractmethod
     def do_work(self):
