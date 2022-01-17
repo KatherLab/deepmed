@@ -140,7 +140,7 @@ class Category:
 
 @log_defaults
 def _train(
-        task: 'GPUTask', /,
+        task: 'GPUTask', /, #type: ignore
         arch: Callable[[bool], nn.Module] = resnet18,
         batch_size: int = 64,
         max_epochs: int = 10,

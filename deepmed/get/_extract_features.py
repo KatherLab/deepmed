@@ -6,7 +6,7 @@ from fastai.layers import AdaptiveConcatPool2d
 from fastai.learner import Learner
 from fastai.losses import CrossEntropyLossFlat
 from deepmed.utils import factory
-from typing import Callable, Iterable, Optional, Sequence, TypeVar
+from typing import Callable, Generator, Iterable, Iterator, Optional, Sequence, TypeVar
 from fastai.data.block import DataBlock
 from fastai.data.transforms import ColReader
 from fastai.vision.data import ImageBlock
@@ -29,7 +29,7 @@ def _extract(
         arch: Callable[[bool], nn.Module] = resnet18,
         num_workers: int = 0,
         **kwargs
-) -> None:
+) -> Iterator[Task]:
     tile_dir = Path(tile_dir)
     feat_dir = Path(feat_dir) if feat_dir is not None else project_dir
 
@@ -94,7 +94,7 @@ def batch(sequence: Sequence[T], n: int) -> Iterable[Sequence[T]]:
         yield sequence[ndx:min(ndx + n, l)]
 
 
-def _get_coords(filename: PathLike) -> Optional[np.array]:
+def _get_coords(filename: PathLike) -> Optional[np.ndarray]:
     if matches := re.match(r'.*\((\d+),(\d+)\)\.jpg', str(filename)):
         coords = tuple(map(int, matches.groups()))
         assert len(coords) == 2, 'Error extracting coordinates'

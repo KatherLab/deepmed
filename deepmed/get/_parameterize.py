@@ -43,7 +43,7 @@ def _parameterize(
                 *args, project_dir=project_dir/name,
                 # overwrite default ``kwargs``` w/ parameterization ones, if they were given
                 **{**kwargs, **parameterization}):
-            eval_reqirements.append(task.done)
+            eval_reqirements.append(task)
             yield task
 
     yield EvalTask(

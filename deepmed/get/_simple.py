@@ -1,10 +1,11 @@
+from enum import Enum, auto
 from functools import partial
 import random
 import logging
-from typing import Iterable, Sequence, Iterator, Optional, Any, Union, Mapping
+from typing import Callable, Iterable, Sequence, Iterator, Optional, Any, Union, Mapping
 from pathlib import Path
 from numbers import Number
-from multiprocessing.synchronize import Semaphore
+from threading import Semaphore
 
 import torch
 import pandas as pd
@@ -63,14 +64,55 @@ def cohort(
     cohort_df = cohort_df.copy()    # for defragmentation
     cohort_df['slide_path'] = tiles_path/cohort_df[slidename_label]
 
-    assert cohort_df.slide_path.map(Path.exists).any(), \
-        f'none of the slide paths for "{slide_path}" exist!'
+    # TODO
+    # assert cohort_df.slide_path.map(Path.exists).any(), \
+    #    f'none of the slide paths for "{slide_path}" exist!'
 
     logger.debug(f'#slides in {slide_path}: {len(slide_df)}')
     logger.debug(f'#patients in {clini_path}: {len(clini_df)}')
     logger.debug(f'#patients with slides for {tiles_path}: {len(cohort_df)}')
 
     return cohort_df
+
+
+class DatasetType(Enum):
+    TRAIN = auto()
+    VALID = auto()
+    TEST = auto()
+
+
+def get_tiles(
+        dataset_type: DatasetType, cohorts_df: pd.DataFrame,
+        max_tile_nums: Mapping[DatasetType, int] = {DatasetType.TRAIN: 128,
+                                                    DatasetType.VALID: 256,
+                                                    DatasetType.TEST: 512},
+        resample_each_epoch: bool = False,
+        logger: logging.Logger = logging,
+) -> pd.DataFrame:
+    """Create df containing patient, tiles, other data."""
+    tiles_dfs = []
+    for _, data in tqdm(cohorts_df.groupby('PATIENT')):
+        tiles = [(tile_dir, file)
+                 for tile_dir in data.slide_path
+                 if tile_dir.exists()
+                 for file in tile_dir.iterdir()]
+        if (tile_num := max_tile_nums.get(dataset_type)):
+            tiles = random.sample(tiles, min(len(tiles), tile_num))
+        tiles_df = pd.DataFrame(tiles, columns=['slide_path', 'tile_path'])
+
+        tiles_dfs.append(data.merge(
+            tiles_df, on='slide_path').drop(columns='slide_path'))
+
+    tiles_df = pd.concat(tiles_dfs).reset_index(drop=True)
+    logger.info(
+        f'Found {len(tiles_df)} tiles for {len(tiles_df["PATIENT"].unique())} patients')
+
+    # if we want the training procedure to resample a slide's tiles every epoch,
+    # we have to supply a slide path instead of the tile path
+    if dataset_type == DatasetType.TRAIN and resample_each_epoch:
+        tiles_df.tile_path = tiles_df.tile_path.map(lambda p: p.parent)
+
+    return tiles_df
 
 
 @log_defaults
@@ -84,17 +126,13 @@ def _simple_run(
         balance: bool = True,
         train: Trainer = Train(),
         deploy: Deployer = Deploy(),
-        resample_each_epoch: bool = False,
-        max_train_tile_num: Optional[int] = 128,
-        max_valid_tile_num: Optional[int] = 256,
-        max_test_tile_num: Optional[int] = 512,
-        seed: int = 0,
         valid_frac: float = .2,
         n_bins: Optional[int] = 2,
         na_values: Iterable[Any] = [],
         min_support: int = 10,
         evaluators: Iterable[Evaluator] = [],
         max_class_count: Optional[Mapping[str, int]] = None,
+        get_items: Callable = get_tiles,
         **kwargs,
 ) -> Iterator[Task]:
     """Creates tasks for a basic test-deploy procedure.
@@ -159,9 +197,12 @@ def _simple_run(
             train_df = pd.read_csv(train_df_path, dtype={'is_valid': bool})
         elif train_cohorts_df is not None:
             train_df = _generate_train_df(
-                train_cohorts_df, target_label, na_values, n_bins, min_support, logger,
-                patient_label, valid_frac, seed, train_df_path, balance, max_class_count,
-                resample_each_epoch, max_train_tile_num, max_valid_tile_num)
+                get_items=get_items, train_cohorts_df=train_cohorts_df,
+                target_label=target_label, na_values=na_values, n_bins=n_bins,
+                min_support=min_support, logger=logger,
+                patient_label=patient_label, valid_frac=valid_frac,
+                train_df_path=train_df_path, balance=balance,
+                max_class_count=max_class_count)
             # unable to generate a train df (e.g. because of insufficient data)
             if train_df is None:
                 return
@@ -180,8 +221,8 @@ def _simple_run(
                 test_cohorts_df, target_label, na_values, n_bins=None, min_support=0, logger=logger)
 
             logger.info(f'Testing slide counts: {len(test_cohorts_df)}')
-            test_df = _get_tiles(
-                cohorts_df=test_cohorts_df, max_tile_num=max_test_tile_num, logger=logger)
+            test_df = get_items(dataset_type=DatasetType.TEST,
+                                cohorts_df=test_cohorts_df, logger=logger)
 
             train_df_path.parent.mkdir(parents=True, exist_ok=True)
             test_df.to_csv(test_df_path, index=False, compression='zip')
@@ -206,16 +247,14 @@ def _simple_run(
             yield EvalTask(
                 path=project_dir,
                 target_label=target_label,
-                requirements=[gpu_task.done],
+                requirements=[gpu_task],
                 evaluators=evaluators)
 
 
 def _generate_train_df(
-        train_cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable,
-        n_bins: Optional[int], min_support: int, logger, patient_label: str,
-        valid_frac: float, seed: int, train_df_path: Path, balance: bool,
-        max_class_count: Optional[Mapping[str, int]], resample_each_epoch: bool,
-        max_train_tile_num: int, max_valid_tile_num: int
+        train_cohorts_df: pd.DataFrame, target_label: str, get_items: Callable,na_values: Iterable,
+        n_bins: Optional[int], min_support: int, logger, patient_label: str, valid_frac: float,
+        train_df_path: Path, balance: bool, max_class_count: Optional[Mapping[str, int]],
 ) -> Optional[pd.DataFrame]:
     train_cohorts_df = _prepare_cohorts(
         train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
@@ -223,7 +262,7 @@ def _generate_train_df(
     if train_cohorts_df[target_label].nunique() < 2:
         logger.warning(
             f'Not enough classes for target {target_label}! skipping...')
-        return
+        return None
 
     if is_continuous(train_cohorts_df[target_label]):
         targets = train_cohorts_df[target_label]
@@ -259,18 +298,15 @@ def _generate_train_df(
         valid_patients)
 
     logger.info(f'Searching for training tiles')
-    train_df = _get_tiles(
+    train_df = get_items(
+        dataset_type=DatasetType.TRAIN,
         cohorts_df=train_cohorts_df[~train_cohorts_df.is_valid],
-        max_tile_num=max_train_tile_num, logger=logger)
+        logger=logger)
 
-    # if we want the training procedure to resample a slide's tiles every epoch,
-    # we have to supply a slide path instead of the tile path
-    if resample_each_epoch:
-        train_df.tile_path = train_df.tile_path.map(lambda p: p.parent)
-
-    valid_df = _get_tiles(
+    valid_df = get_items(
+        dataset_type=DatasetType.VALID,
         cohorts_df=train_cohorts_df[train_cohorts_df.is_valid],
-        max_tile_num=max_valid_tile_num, logger=logger)
+        logger=logger)
 
     # restrict to classes present in training set
     if not is_continuous(train_df[target_label]):
@@ -327,11 +363,6 @@ def _prepare_cohorts(
         rare_classes = (class_counts[class_counts < min_support]).index
         cohorts_df = cohorts_df[~cohorts_df[target_label].isin(rare_classes)]
 
-    # filter slides w/o tiles
-    slides_with_tiles = cohorts_df.slide_path.map(
-        lambda x: bool(next(x.glob('*.jpg'), False)))
-    cohorts_df = cohorts_df[slides_with_tiles]
-
     return cohorts_df
 
 
@@ -348,30 +379,6 @@ def _discretize(xs: Sequence[Number], n_bins: int) -> Sequence[str]:
     label_map = dict(enumerate(labels))
     discretized = est.transform(unsqueezed).reshape(-1).astype(int)
     return list(map(label_map.get, discretized))  # type: ignore
-
-
-def _get_tiles(
-        cohorts_df: pd.DataFrame, max_tile_num: Optional[int], logger: logging.Logger
-) -> pd.DataFrame:
-    """Create df containing patient, tiles, other data."""
-    tiles_dfs = []
-    for _, data in tqdm(cohorts_df.groupby('PATIENT')):
-        tiles = [(tile_dir, file)
-                 for tile_dir in data.slide_path
-                 if tile_dir.exists()
-                 for file in tile_dir.iterdir()]
-        if max_tile_num is not None:
-            tiles = random.sample(tiles, min(len(tiles), max_tile_num))
-        tiles_df = pd.DataFrame(tiles, columns=['slide_path', 'tile_path'])
-
-        tiles_dfs.append(data.merge(
-            tiles_df, on='slide_path').drop(columns='slide_path'))
-
-    tiles_df = pd.concat(tiles_dfs).reset_index(drop=True)
-    logger.info(
-        f'Found {len(tiles_df)} tiles for {len(tiles_df["PATIENT"].unique())} patients')
-
-    return tiles_df
 
 
 def _balance_classes(tiles_df: pd.DataFrame, target: str) -> pd.DataFrame:
