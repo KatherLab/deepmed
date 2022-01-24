@@ -1,10 +1,5 @@
-<<<<<<< HEAD
 from enum import Enum, auto
 from functools import partial
-=======
-from functools import lru_cache, partial
-from multiprocessing.managers import SyncManager
->>>>>>> Minor improvements
 import random
 import logging
 from typing import Callable, Iterable, Sequence, Iterator, Optional, Any, Union, Mapping

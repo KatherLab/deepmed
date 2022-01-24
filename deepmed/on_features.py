@@ -1,5 +1,6 @@
+from functools import partial
 import os
-from random import random
+import random
 import shutil
 import logging
 from typing import Callable, Iterable, Mapping, Optional
@@ -10,7 +11,6 @@ from fastai.data.block import CategoryBlock, DataBlock, RegressionBlock, Transfo
 from fastai.data.transforms import ColReader, ColSplitter
 from fastai.learner import Learner, load_learner
 from fastai.losses import CrossEntropyLossFlat
-from fastai.vision.augment import aug_transforms
 from fastai.vision.learner import create_head
 from fastcore.foundation import L
 from tqdm import tqdm
@@ -67,7 +67,11 @@ def get_h5s(
 def load_feats(args: L):
     path, i = args
     with h5py.File(path, 'r') as f:
-        #assert isinstance(f['feats'][i], np.ndarray), f'{path=} {f["feats"][i]=}'
+        # check if all features stem from the same extractor
+        #h5_checksum = f.attrs['extractor-checksum']
+        #assert self.extractor_checksum == h5_checksum, \
+        #     f'feature extractor mismatch for {path} ' \
+        #     f'(expected {self.extractor_checksum:08x}, got {h5_checksum:08x})'
         if i == -1:
             return torch.from_numpy(f['feats'][np.random.randint(len(f['feats']))])
         else:
@@ -102,9 +106,6 @@ class Train:
     max_epochs: int = 32
     lr: float = 2e-3
     num_workers: int = (32 if os.name == 'posix' else 0)
-    tfms: Optional[Callable] = field(
-        default_factory=lambda: aug_transforms(
-            flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224))
     metrics: Iterable[Callable] = field(default_factory=list)
     patience: int = 3
     monitor: str = 'valid_loss'
@@ -123,7 +124,6 @@ class Train:
             return None
 
         y_block = RegressionBlock if is_continuous(train_df[target_label]) else CategoryBlock
-
         dblock = DataBlock(blocks=(TransformBlock(item_tfms=load_feats), y_block),
                            get_x=ColReader(['slide_path', 'i']),
                            get_y=ColReader(target_label),
@@ -153,6 +153,10 @@ class Train:
             path=result_dir,
             loss_func=loss_func,
             metrics=self.metrics)
+
+        # save the features' extractor in the model so we can trace it back later
+        with h5py.File(train_df.slide_path.iloc[0]) as f:
+            learn.extractor_checksum = f.attrs['extractor-checksum']
 
         cbs = [
             SaveModelCallback(

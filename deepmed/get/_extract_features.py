@@ -14,6 +14,7 @@ from fastai.vision.data import ImageBlock
 from fastai.vision.learner import cnn_learner
 from torch import nn
 from fastai.vision.augment import RandomCrop, Resize
+from fastai.vision.learner import create_body
 from fastai.vision.models import resnet18
 from tqdm import tqdm
 import pandas as pd
@@ -21,6 +22,7 @@ import numpy as np
 import h5py
 import re
 import torch
+import logging
 from fastdownload import FastDownload
 from fastai.data.external import fastai_cfg
 import fastai
@@ -50,13 +52,13 @@ Extract = factory(_extract)
 
 
 def PretrainedModel(url, arch=resnet18) -> nn.Module:
-    model = arch(pretrained=False)
     d = FastDownload(fastai_cfg(), module=fastai.data, base='~/.fastai')
     path = d.download(url)
-    checkpoint = torch.load(path)
 
-    missing = model.load_state_dict(checkpoint['state_dict'], strict=False)
-    assert set(missing.missing_keys) == {'fc.weight', 'fc.bias'}
+    model = arch(pretrained=False)
+    checkpoint = torch.load(path)
+    missing = model.load_state_dict(checkpoint, strict=False)
+    assert not set(missing.missing_keys)
 
     return lambda pretrained: model
 
@@ -70,16 +72,22 @@ class ExtractTask(Task):
     def do_work(self):
         for slides in (slide_pbar := tqdm(list(batch(self.slides, n=256)), leave=False)):
             learn = feature_extractor(
-                arch=self.arch, num_workers=self.num_workers, item_tfms=Resize(224))
+                arch=self.arch, num_workers=self.num_workers, item_tfms=RandomCrop(224))#Resize(224))
             slide_pbar.set_description(slides[0].name)
             do_slides(slides, learn, self.path)
 
 
 def do_slides(slides: Iterable[Path], learn: Learner, feat_dir: Path):
+    checksum = model_checksum(learn.model)
+
     dfs = []
     for slide in slides:
-        if (feat_dir/f'{slide.name}.h5').exists():
+        if (h5_file := feat_dir/f'{slide.name}.h5').exists():
+            assert (h5_checksum := h5py.File(h5_file, 'r').attrs['extractor-checksum']) == checksum, \
+                f'{h5_file} has been extracted with a different model than the current one.  ' \
+                f'(current: {checksum:08x}, {h5_file.name}: {h5_checksum:08x})'
             continue
+
         slide_df = pd.DataFrame(
             list(slide.glob('*.jpg')), columns=['path'])
         slide_df['slide'] = slide
@@ -98,8 +106,17 @@ def do_slides(slides: Iterable[Path], learn: Learner, feat_dir: Path):
         coords = np.array(list(data.path.map(_get_coords)))
         outpath = feat_dir/f'{slide.name}.h5'
         with h5py.File(outpath, 'w') as f:
-            f.create_dataset('feats', dtype='float32', data=preds[data.index])
-            f.create_dataset('coords', dtype='int', data=coords)
+            f['feats'] = preds[data.index]
+            f['coords'] = coords
+            f.attrs['extractor-checksum'] = checksum
+
+
+def model_checksum(m):
+    checksum = torch.tensor(0, dtype=torch.int64)
+    for p in m.parameters():
+        checksum += (p.cpu().abs()*(1<<24)).type(torch.int64).sum()
+        checksum %= 1<<32
+    return checksum
 
 
 T = TypeVar('T')

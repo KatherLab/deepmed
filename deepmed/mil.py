@@ -228,6 +228,10 @@ class Train:
         learn = Learner(dls, MILModel(feat_no, dls.c),
                         path=task.path, loss_func=loss_func, metrics=self.metrics)
 
+        # save the features' extractor in the model so we can trace it back later
+        with h5py.File(train_df.slide_path.iloc[0]) as f:
+            learn.extractor_checksum = f.attrs['extractor-checksum']
+
         # find learning rate if necessary
         if not self.lr:
             logger.info('searching learning rate...')
