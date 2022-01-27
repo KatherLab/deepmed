@@ -6,7 +6,7 @@ from deepmed.get._extract_features import PretrainedModel
 
 def main():
     do_experiment(
-        project_dir='multi_target_train',
+        project_dir='.',
         get=Extract(
             feat_dir='/feature/output/dir',
             tile_dir='/tile/dir',

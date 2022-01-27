@@ -21,6 +21,23 @@ from deepmed.types import GPUTask
 from deepmed.utils import is_continuous
 
 
+__all__ = ['get_h5s', 'MILBagTransform', 'Attention', 'GatedAttention', 'MILModel', 'Train']
+
+def get_h5s(
+        dataset_type, cohorts_df: pd.DataFrame,
+        resample_each_epoch: bool = True,
+        logger: logging.Logger = logging,
+) -> pd.DataFrame:
+    """Create df containing patient, tiles, other data."""
+    cohorts_df.slide_path = cohorts_df.slide_path.map(lambda p: p.parent/f'{p.name}.h5')
+    cohorts_df = cohorts_df[cohorts_df.slide_path.map(lambda p: p.exists())]
+
+    logger.info(
+        f'Found {len(cohorts_df)} slides for {len(cohorts_df["PATIENT"].unique())} patients')
+
+    return cohorts_df
+
+
 def _to_fixed_size_bag(bag: torch.Tensor, bag_size: int = 512) -> Tuple[torch.Tensor, int]:
     # get up to bag_size elements
     bag_idxs = torch.randperm(bag.shape[0])[:bag_size]
