@@ -5,7 +5,7 @@ from ._multi_target import *
 from ._parameterize import *
 
 __all__ = [
-    'cohort', 'SimpleRun', 'Subgroup',
+    'cohort', 'SimpleRun', 'DatasetType', 'Subgroup',
     'MultiTarget', 'MultiTargetBaseTaskGetter',
     'Parameterize', 'ParameterizeBaseTaskGetter',
     'Crossval', 'CrossvalBaseTaskGetter']

@@ -120,10 +120,11 @@ class Train:
             loss_func = None
         else:
             counts = train_df[~train_df.is_valid].iloc[:,target_col_idx].value_counts()
-            counts = torch.tensor([counts[k] for k in dls.vocab])
-            weights = 1 - (counts / sum(counts))
-            loss_func = CrossEntropyLossFlat(weight=weights.cuda())
-            logger.debug(f'{dls.vocab = }, {weights = }')
+            weight = counts.sum() / counts
+            weight /= weight.sum()
+            weight = torch.tensor(list(map(weight.get, dls.vocab))) # reorder according to vocab
+            loss_func = CrossEntropyLossFlat(weight=weight.cuda())
+            logger.debug(f'{dls.vocab = }, {weight = }')
 
         learn = cnn_learner(
             dls, self.arch,

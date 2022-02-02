@@ -4,7 +4,7 @@ import logging
 import threading
 from typing import Mapping, Union, Optional
 from pathlib import Path
-import concurrent
+from concurrent import futures
 from fastcore.parallel import ThreadPoolExecutor
 
 from .types import *
@@ -65,8 +65,8 @@ def do_experiment(
                 task.run()
         else:
             with ThreadPoolExecutor(num_concurrent_tasks) as e:
-                futures = [e.submit(Task.run, task) for task in tasks]
-                for future in concurrent.futures.as_completed(futures):
+                running = [e.submit(Task.run, task) for task in tasks]
+                for future in futures.as_completed(running):
                     future.result() # consume results to trigger exceptions
 
     except Exception as e:

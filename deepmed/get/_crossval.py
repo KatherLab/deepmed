@@ -104,7 +104,7 @@ def _crossval(
     requirements = []
     for task in fold_tasks:
         yield task
-        requirements.append(task.done)
+        requirements.append(task)
 
     yield EvalTask(
         path=project_dir,
