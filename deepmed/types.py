@@ -1,11 +1,12 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
+from collections import abc
 import threading
-from deepmed.utils import exists_and_has_size, factory
+from deepmed.utils import exists_and_has_size
 import logging
 from itertools import cycle
 
-from typing import Optional, Callable, Iterator, Union, Mapping
+from typing import Any, Optional, Callable, Iterator, Union, Mapping, final
 from typing_extensions import Protocol
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -13,7 +14,7 @@ from threading import Event
 from fastai.learner import Learner
 
 import pandas as pd
-from multiprocessing.synchronize import Semaphore
+from threading import Semaphore
 
 from typing import Iterable
 from pathlib import Path
@@ -32,24 +33,26 @@ class Task(ABC):
     path: Path
     """The directory to save data in for this task."""
 
-    requirements: Iterable[Event]
+    requirements: Iterable[Task]
     """List of events which have to have occurred before this task can be
     started."""
 
     done: Event = field(default_factory=threading.Event, init=False)
     """Whether this task has concluded."""
 
+    res: Any = field(default=None, init=False)
+
     def run(self) -> None:
         """Start this task."""
         for reqirement in self.requirements:
             reqirement.wait()
         try:
-            self.do_work()
+            self.res = self.do_work()
         finally:
             self.done.set()
 
     @abstractmethod
-    def do_work(self):
+    def do_work(self) -> Any:
         ...
 
 

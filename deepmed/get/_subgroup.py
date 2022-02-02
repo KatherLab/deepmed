@@ -63,7 +63,7 @@ def _subgroup(
     requirements = []
     for task in tasks:
         yield task
-        requirements.append(task.done)
+        requirements.append(task)
 
     yield EvalTask(
         path=project_dir,

@@ -129,7 +129,7 @@ def _get_coords(filename: str) -> Optional[Tuple[int, int]]:
     else: return None
 
 
-def _get_stride(coordinates: np.array) -> int:
+def _get_stride(coordinates: np.ndarray) -> int:
     xs = sorted(set(coordinates[:, 0]))
     x_strides = np.subtract(xs[1:], xs[:-1])
 
