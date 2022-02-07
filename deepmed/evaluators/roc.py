@@ -84,7 +84,7 @@ def _roc(target_label: str, preds_df: pd.DataFrame, result_dir: Path) -> None:
         else:
             _plot_simple_roc(preds_df, target_label, class_, ax=ax, conf=.95)
 
-        fig.savefig(outfile)
+        plt.savefig(outfile)
         plt.close()
 
 Roc = factory(_roc)
