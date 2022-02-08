@@ -45,7 +45,7 @@ class Task(ABC):
     def run(self) -> None:
         """Start this task."""
         for reqirement in self.requirements:
-            reqirement.wait()
+            reqirement.done.wait()
         try:
             self.res = self.do_work()
         finally:
