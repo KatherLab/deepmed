@@ -58,8 +58,8 @@ class TestSeperateTrainAndDeploy(unittest.TestCase):
                         evaluators=[Grouped(auroc), count, Grouped(count)]),
                     logfile=None)
 
-                stats_df = pd.read_csv(
-                    Path(testing_dir)/'stats.csv', index_col=0, header=[0, 1])
+                stats_df = pd.read_pickle(
+                    Path(testing_dir)/'stats.pkl')
                 self.assertEqual(
                     stats_df[('count', 'PATIENT')]['Positive'], 76)
                 self.assertEqual(
@@ -92,8 +92,7 @@ class TestDiscretization(unittest.TestCase):
                     train=Train(max_epochs=1)),
                 logfile=None)
 
-            stats_df = pd.read_csv(
-                Path(project_dir)/'stats.csv', index_col=0, header=[0, 1])
+            stats_df = pd.read_pickle(Path(project_dir)/'stats.pkl')
             self.assertEqual(stats_df[('count', 'PATIENT')]['[-inf,0.7)'], 31)
             self.assertEqual(stats_df[('count', 'PATIENT')
                                       ]['[0.7,1.43333333333)'], 34)
@@ -133,8 +132,8 @@ class TestEvaluators(unittest.TestCase):
         """Test AUROC Metric."""
         evaluate(self.training_dir.name, self.cohorts_df,
                  [auroc, Grouped(auroc)])
-        stats_df = pd.read_csv(
-            Path(self.training_dir.name)/'stats.csv', index_col=0, header=[0, 1])
+        stats_df = pd.read_pickle(
+            Path(self.training_dir.name)/'stats.pkl')
 
         auroc_ = stats_df[('auroc', 'PATIENT')]['Positive']
         self.assertTrue(auroc_ >= 0 and auroc_ <= 1, msg='AUROC not in [0,1]')
@@ -146,16 +145,16 @@ class TestEvaluators(unittest.TestCase):
     def test_f1(self):
         evaluate(self.training_dir.name,
                  self.cohorts_df, [F1(), Grouped(F1())])
-        stats_df = pd.read_csv(
-            Path(self.training_dir.name)/'stats.csv', index_col=0, header=[0, 1])
+        stats_df = pd.read_pickle(
+            Path(self.training_dir.name)/'stats.pkl')
         self.assertIn(('f1 optimal', 'nan'), stats_df.columns)
         self.assertIn(('f1 optimal', 'PATIENT'), stats_df.columns)
 
     def test_count(self):
         evaluate(self.training_dir.name, self.cohorts_df,
                  [count, Grouped(count)])
-        stats_df = pd.read_csv(
-            Path(self.training_dir.name)/'stats.csv', index_col=0, header=[0, 1])
+        stats_df = pd.read_picklel(
+            Path(self.training_dir.name)/'stats.pkl')
         self.assertTrue(
             (stats_df[('count', 'nan')] ==
              stats_df[('count', 'PATIENT')] * self.max_train_tile_num).all(),

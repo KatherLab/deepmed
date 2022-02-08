@@ -14,7 +14,7 @@ In general, metrics are implemented in two ways:
     metrics.
 
 Metrics may return a ``DataFrame``, which will be written to the result directory inside the file
-``stats.csv``.
+``stats.pkl``.
 """
 
 from typing import Optional

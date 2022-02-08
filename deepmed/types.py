@@ -174,7 +174,8 @@ class EvalTask(Task):
                     df = _raise_df_column_level(df, levels)
                     stats_df = stats_df.join(df)
         if stats_df is not None:
-            stats_df.to_csv(self.path/'stats.csv')
+            stats_df.to_pickle(self.path/'stats.pkl')
+            stats_df.to_excel(self.path/f'{self.path.name}_stats.xlsx')
 
 
 def _camel_case_name(obj) -> str:

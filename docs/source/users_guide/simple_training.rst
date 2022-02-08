@@ -161,7 +161,7 @@ overall tile count per class we for example get the number of patients per
 class.
 
 If we now extend our deployment script to make use of these evaluators,
-re-running the script should yield a file ``stats.csv`` which contains the
+re-running the script should yield a file ``stats.pkl`` which contains the
 requested metrics::
 
     project_dir = '/path/to/deployment/project/dir'

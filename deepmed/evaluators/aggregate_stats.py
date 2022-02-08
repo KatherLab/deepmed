@@ -25,13 +25,14 @@ def _aggregate_stats(
         An aggregation of the subdirectories' statistics.
 
     By default, this function simply concatenates the contents of all the
-    ``stats.csv`` files in ``path``'s immediate subdirectories.  Each of
+    ``stats.pkl`` files in ``path``'s immediate subdirectories.  Each of
     the subdirectories' names will be added as to the index at its top level.
 
     The ``over`` argument can be used to aggregate over certain index columns of
     the resulting concatenated dataframe; let's assume the concatenated
     dataframe looks like this:
 
+    #TODO update!!!!! ((
     ======  ======  =======  =======  ===
     Metric                   auroc    f1
     ------  ------  -------  -------  ---
@@ -52,15 +53,14 @@ def _aggregate_stats(
     """
     # collect all parent stats dfs
     dfs = []
-    stats_df_paths = list(path.glob('*/stats.csv'))
+    stats_df_paths = list(path.glob('*/stats.pkl'))
     for df_path in stats_df_paths:
-        header, index_col = _get_header_and_index_col(df_path)
-        dfs.append(pd.read_csv(df_path, header=header, index_col=index_col))
+        dfs.append(pd.read_pickle(df_path))
 
-    assert dfs, 'could not find any stats.csvs to aggregate!  ' \
+    assert dfs, 'could not find any stats.pkls to aggregate!  ' \
         'Did you accidentally use AggregateStats on the bottommost evaluator level?'
     assert all(df.index.names == dfs[0].index.names for df in dfs[1:]), \
-        'index labels differ between stats.csvs to aggregate over!'
+        'index labels differ between stats.pkls to aggregate over!'
     stats_df = pd.concat(
         dfs,
         keys=[path.parent.name for path in stats_df_paths],
@@ -134,43 +134,12 @@ def _get_groupby_levels(df: pd.DataFrame, over: Iterable[Union[str, int]]) -> Se
                            for label in over
                            if isinstance(label, str) and df.index.names.count(label) != 1),
                           None)) is None, \
-        f'{label!r} appears {df.index.names.count(label)} times in stats.csv! ' \
+        f'{label!r} appears {df.index.names.count(label)} times in stats.pkl! ' \
         'Use index numbers to disambiguate!'
 
     return [
         i for i, name in enumerate(df.index.names)
         if name not in over and i not in over]
-
-
-def _get_header_and_index_col(csv_path: Path) -> Tuple[Sequence[int], Sequence[int]]:
-    """Gets the number of header rows and index columns.
-
-    FIXME Kinda ugly, evil hack
-
-    Assumes that the first header row contains as many empty fields as there are
-    index columns and that each header row starts with a ','.  For the table::
-
-        ,,,auroc,f1
-        ,,,PATIENT,nan
-        isMSIH,fold_0,MSIH,.7,.4
-
-    this function would return ([0,1], [0,1,2]).
-
-    We also check if there is an index column header by checking for the first
-    row which ends on a comma::
-
-        ,,,auroc,f1
-        ,,,PATIENT,nan
-        target,fold,class,,         <- index column header
-        isMSIH,fold_0,MSIH,.7,.4
-    """
-    with open(csv_path) as f:
-        index_no = f.readline().split(',').count('')
-        # get first non-header line
-        header_no = next(i for i, line in enumerate(f)
-                         if line[0] != ',' or re.search(',$', line)) + 1
-
-    return (list(range(header_no)), list(range(index_no)))
 
 
 AggregateStats = factory(_aggregate_stats)
