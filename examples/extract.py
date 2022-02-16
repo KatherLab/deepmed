@@ -5,9 +5,8 @@ from deepmed.get._extract_features import Extract
 
 def main():
     do_experiment(
-        project_dir='.',
+        project_dir='/feature/output/dir',
         get=Extract(
-            feat_dir='/feature/output/dir',
             tile_dir='/tile/dir',
             arch=resnet18,
         ),

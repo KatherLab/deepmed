@@ -34,9 +34,8 @@ model = load_model_weights(model, state_dict)
 # `arch=lambda pretrained: model` will extract features with that model.
 def main():
     do_experiment(
-        project_dir='.',
+        project_dir='features/ozanciga',
         get=Extract(
-            feat_dir='features/ozanciga',
             tile_dir='tile/dir',
             arch=lambda pretrained: model,
         ),

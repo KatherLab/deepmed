@@ -21,9 +21,7 @@ def main():
             get_items=mil.get_h5s,
             train=mil.Train(),
             balance=False,
-        ),
-        keep_going=False)
-
+        ))
 
 if __name__ == '__main__':
     main()

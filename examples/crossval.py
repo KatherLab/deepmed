@@ -24,6 +24,9 @@ def main():
             valid_frac=.2,
             crossval_evaluators=[AggregateStats(label='fold', over=['fold'])],
             evaluators=[Grouped(auroc), Grouped(count), Grouped(p_value), gradcam],
+            get_items=get.get_tiles(max_tile_nums={DatasetType.TRAIN: 128,
+                                                   DatasetType.VALID: 256,
+                                                   DatasetType.TEST: 512}),
             train=Train(
                 batch_size=96,
                 max_epochs=4),
