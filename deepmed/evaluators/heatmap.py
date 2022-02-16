@@ -31,6 +31,11 @@ def _heatmap(
 
     for slide_name, tiles in preds_df.groupby('FILENAME'):
         true_label = tiles.iloc[0][target_label]
+
+        outfile = (outdir/str(true_label)/slide_name).with_suffix(format)
+        if outfile.exists():
+            continue
+
         try:
             plt.figure(dpi=600)
             slide_path = Path(tiles.tile_path.iloc[0]).parent
@@ -114,8 +119,8 @@ def _heatmap(
                     legend = axs[1].legend(
                         title=target_label, handles=legend_elements, bbox_to_anchor=(1, 1), loc='upper left')
 
-            (outdir/str(true_label)).mkdir(exist_ok=True, parents=True)
-            plt.savefig((outdir/str(true_label)/slide_name).with_suffix(format), bbox_extra_artists=[legend], bbox_inches='tight')
+            outfile.parent.mkdir(exist_ok=True, parents=True)
+            plt.savefig(outfile, bbox_extra_artists=[legend], bbox_inches='tight')
             plt.close('all')
         except Exception as exp:
             logger.exception(exp)

@@ -74,9 +74,12 @@ def _crossval(
         cohorts_df = _prepare_cohorts(
             cohorts_df, target_label, na_values, n_bins, min_support*folds//(folds-1), logger=logger)
 
-        if cohorts_df[target_label].nunique() < 2:
+        if cohorts_df is None or cohorts_df.empty:
+            logger.warning(f'No data left after preprocessing. Skipping...')
+            return
+        elif cohorts_df[target_label].nunique() < 2:
             logger.warning(
-                f'Not enough classes for target {target_label}! skipping...')
+                f'Not enough classes for target {target_label}! Skipping...')
             return
 
         logger.info(

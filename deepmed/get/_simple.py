@@ -309,8 +309,10 @@ def _generate_train_df(
     logger.info(f'Searching for training tiles')
     train_df = get_items(
         dataset_type=DatasetType.TRAIN,
-        cohorts_df=train_cohorts_df[~train_cohorts_df.is_valid],
-        logger=logger)
+        cohorts_df=train_cohorts_df[~train_cohorts_df.is_valid], logger=logger)
+    if train_df.empty:
+        logger.warning('did not find any tiles. Skipping...')
+        return None
 
     valid_df = get_items(
         dataset_type=DatasetType.VALID,
@@ -351,14 +353,16 @@ def _prepare_cohorts(
     Discretizes continuous targets and drops classes for which only few
     examples are present.
     """
+    assert not cohorts_df.empty
     cohorts_df = cohorts_df.copy()
-    if not is_continuous(cohorts_df[target_label]):
-        cohorts_df[target_label] = cohorts_df[target_label].str.strip()
 
     # remove N/As
     cohorts_df = cohorts_df[cohorts_df[target_label].notna()]
     for na_value in na_values:
         cohorts_df = cohorts_df[cohorts_df[target_label] != na_value]
+    if cohorts_df.empty:
+        logger.warning('no samples left after dropping NAs')
+        return None
 
     if n_bins is not None and is_continuous(cohorts_df[target_label]):
         # discretize
@@ -371,6 +375,9 @@ def _prepare_cohorts(
         class_counts = cohorts_df[target_label].value_counts()
         rare_classes = (class_counts[class_counts < min_support]).index
         cohorts_df = cohorts_df[~cohorts_df[target_label].isin(rare_classes)]
+        if cohorts_df.empty:
+            logger.warning('no samples left after excluding rare classes.')
+            return
 
     return cohorts_df
 
