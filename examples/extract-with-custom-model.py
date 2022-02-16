@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Extracts features with a custom model."""
 from deepmed.experiment_imports import *
-from deepmed.get._extract_features import Extract
 import torch
 import torchvision
 
@@ -35,12 +34,10 @@ model = load_model_weights(model, state_dict)
 def main():
     do_experiment(
         project_dir='features/ozanciga',
-        get=Extract(
+        get=get.Extract(
             tile_dir='tile/dir',
             arch=lambda pretrained: model,
-        ),
-        devices={'cuda:0': 4}
-    )
+        ))
 
 
 if __name__ == '__main__':

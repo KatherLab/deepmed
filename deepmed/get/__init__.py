@@ -8,4 +8,4 @@ __all__ = [
     'cohort', 'SimpleRun', 'get_tiles', 'DatasetType', 'Subgroup',
     'MultiTarget', 'MultiTargetBaseTaskGetter',
     'Parameterize', 'ParameterizeBaseTaskGetter',
-    'Crossval', 'CrossvalBaseTaskGetter']
+    'Crossval', 'CrossvalBaseTaskGetter', 'ExtractFeatures']
