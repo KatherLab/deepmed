@@ -29,6 +29,9 @@ import fastai
 from ..types import PathLike, Task
 
 
+all = ['Extract', 'PretrainedModel', 'ExtractTask']
+
+
 def _extract(
         project_dir: Path,
         tile_dir: PathLike,
