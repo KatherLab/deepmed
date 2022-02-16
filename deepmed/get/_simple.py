@@ -216,14 +216,16 @@ def _generate_train_df(
         train_cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable, n_bins: Optional[int],
         min_support: int, logger, patient_label: str, valid_frac: float, seed: int,
         train_df_path: Path, balance: bool, max_class_count: Optional[Mapping[str, int]],
-        resample_each_epoch: bool, max_train_tile_num: int, max_valid_tile_num: int) -> Optional[pd.DataFrame]:
+        resample_each_epoch: bool, max_train_tile_num: int, max_valid_tile_num: int
+) -> Optional[pd.DataFrame]:
+
     train_cohorts_df = _prepare_cohorts(
         train_cohorts_df, target_label, na_values, n_bins, min_support, logger)
 
     if train_cohorts_df[target_label].nunique() < 2:
         logger.warning(
             f'Not enough classes for target {target_label}! skipping...')
-        return
+        return None
 
     if is_continuous(train_cohorts_df[target_label]):
         targets = train_cohorts_df[target_label]
@@ -262,6 +264,9 @@ def _generate_train_df(
     train_df = _get_tiles(
         cohorts_df=train_cohorts_df[~train_cohorts_df.is_valid],
         max_tile_num=max_train_tile_num, seed=seed, logger=logger)
+    if train_df.empty:
+        logger.warning('did not find any tiles. Skipping...')
+        return None
 
     # if we want the training procedure to resample a slide's tiles every epoch,
     # we have to supply a slide path instead of the tile path
@@ -299,20 +304,22 @@ def _generate_train_df(
 
 def _prepare_cohorts(
         cohorts_df: pd.DataFrame, target_label: str, na_values: Iterable[str],
-        n_bins: Optional[int], min_support: int, logger: logging.Logger) -> pd.DataFrame:
+        n_bins: Optional[int], min_support: int, logger: logging.Logger) -> Optional[pd.DataFrame]:
     """Preprocesses the cohorts.
 
     Discretizes continuous targets and drops classes for which only few examples
     are present.
     """
+    assert not cohorts_df.empty
     cohorts_df = cohorts_df.copy()
-    if not is_continuous(cohorts_df[target_label]):
-        cohorts_df[target_label] = cohorts_df[target_label].str.strip()
 
     # remove N/As
     cohorts_df = cohorts_df[cohorts_df[target_label].notna()]
     for na_value in na_values:
         cohorts_df = cohorts_df[cohorts_df[target_label] != na_value]
+    if cohorts_df.empty:
+        logger.warning('no samples left after dropping NAs')
+        return None
 
     if n_bins is not None and is_continuous(cohorts_df[target_label]):
         # discretize
@@ -325,11 +332,9 @@ def _prepare_cohorts(
         class_counts = cohorts_df[target_label].value_counts()
         rare_classes = (class_counts[class_counts < min_support]).index
         cohorts_df = cohorts_df[~cohorts_df[target_label].isin(rare_classes)]
-
-    # filter slides w/o tiles
-    slides_with_tiles = cohorts_df.slide_path.map(
-        lambda x: bool(next(x.glob('*.jpg'), False)))
-    cohorts_df = cohorts_df[slides_with_tiles]
+        if cohorts_df.empty:
+            logger.warning('no samples left after excluding rare classes.')
+            return
 
     return cohorts_df
 

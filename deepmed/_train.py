@@ -76,7 +76,7 @@ class Train:
     batch_size: int = 64
     max_epochs: int = 32
     lr: float = 2e-3
-    num_workers: int = 0
+    num_workers: int = 16
     tfms: Optional[Callable] = field(
         default_factory=lambda: aug_transforms(
             flip_vert=True, max_rotate=360, max_zoom=1, max_warp=0, size=224))
