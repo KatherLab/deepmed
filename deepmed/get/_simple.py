@@ -87,7 +87,7 @@ def get_tiles(
                                                     DatasetType.VALID: 256,
                                                     DatasetType.TEST: 512},
         resample_each_epoch: bool = False,
-        logger: logging.Logger = logging,
+        logger=logging,
 ) -> pd.DataFrame:
     """Create df containing patient, tiles, other data."""
     tiles_dfs = []

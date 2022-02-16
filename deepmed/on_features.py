@@ -33,7 +33,7 @@ def get_h5s(
                                                     DatasetType.VALID: 256,
                                                     DatasetType.TEST: 512},
         resample_each_epoch: bool = False,
-        logger: logging.Logger = logging,
+        logger=logging,
 ) -> pd.DataFrame:
     """Create df containing patient, tiles, other data."""
     cohorts_df.slide_path = cohorts_df.slide_path.map(lambda p: p.parent/f'{p.name}.h5')

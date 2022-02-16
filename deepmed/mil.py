@@ -27,7 +27,7 @@ __all__ = ['get_h5s', 'MILBagTransform', 'Attention', 'GatedAttention', 'MILMode
 def get_h5s(
         dataset_type, cohorts_df: pd.DataFrame,
         resample_each_epoch: bool = True,
-        logger: logging.Logger = logging,
+        logger=logging,
 ) -> pd.DataFrame:
     """Create df containing patient, tiles, other data."""
     cohorts_df.slide_path = cohorts_df.slide_path.map(lambda p: p.parent/f'{p.name}.h5')
