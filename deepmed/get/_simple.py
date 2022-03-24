@@ -115,6 +115,9 @@ def get_tiles(
     return tiles_df
 
 
+GetTiles = factory(get_tiles)
+
+
 @log_defaults
 def _simple_run(
         project_dir: Path,

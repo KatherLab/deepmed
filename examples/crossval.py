@@ -18,20 +18,16 @@ def main():
             get.SimpleRun(),
             cohorts_df=cohorts_df,
             target_label='ER Status By IHC',
-            max_train_tile_num=128,
-            max_valid_tile_num=64,
-            max_test_tile_num=256,
             valid_frac=.2,
             crossval_evaluators=[AggregateStats(label='fold', over=['fold'])],
             evaluators=[Grouped(auroc), Grouped(count), Grouped(p_value), gradcam],
-            get_items=get.get_tiles(max_tile_nums={DatasetType.TRAIN: 128,
-                                                   DatasetType.VALID: 256,
-                                                   DatasetType.TEST: 512}),
+            get_items=get.GetTiles(max_tile_nums={get.DatasetType.TRAIN: 128,
+                                                   get.DatasetType.VALID: 256,
+                                                   get.DatasetType.TEST: 512}),
             train=Train(
                 batch_size=96,
                 max_epochs=4),
-        ),
-        devices={'cuda:0': 4})
+        ))
 
 
 if __name__ == '__main__':

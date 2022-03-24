@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def do_experiment(
         project_dir: PathLike,
         get: TaskGetter,
-        num_concurrent_tasks: Optional[int] = None,
+        num_concurrent_tasks: Optional[int] = 0,
         devices: Mapping[Union[str, int], int] = {0: 4},
         logfile: Optional[str] = 'logfile',
         keep_going: bool = False) -> None:

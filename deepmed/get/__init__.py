@@ -6,7 +6,7 @@ from ._parameterize import *
 from ._extract_features import *
 
 __all__ = [
-    'cohort', 'SimpleRun', 'get_tiles', 'DatasetType', 'Subgroup',
+    'cohort', 'SimpleRun', 'GetTiles', 'DatasetType', 'Subgroup',
     'MultiTarget', 'MultiTargetBaseTaskGetter',
     'Parameterize', 'ParameterizeBaseTaskGetter',
     'Crossval', 'CrossvalBaseTaskGetter', 'ExtractFeatures']

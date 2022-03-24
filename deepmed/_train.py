@@ -122,7 +122,7 @@ class Train:
             counts = train_df[~train_df.is_valid].iloc[:,target_col_idx].value_counts()
             weight = counts.sum() / counts
             weight /= weight.sum()
-            weight = torch.tensor(list(map(weight.get, dls.vocab))) # reorder according to vocab
+            weight = torch.tensor(list(map(weight.get, dls.vocab)), dtype=torch.float32) # reorder according to vocab
             loss_func = CrossEntropyLossFlat(weight=weight.cuda())
             logger.debug(f'{dls.vocab = }, {weight = }')
 
