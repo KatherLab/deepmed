@@ -81,15 +81,15 @@ class ExtractTask(Task):
 
 
 def do_slides(slides: Iterable[Path], learn: Learner, feat_dir: Path):
-    checksum = model_checksum(learn.model)
+    #checksum = model_checksum(learn.model)
 
     dfs = []
     for slide in slides:
-        if (h5_file := feat_dir/f'{slide.name}.h5').exists():
-            assert (h5_checksum := h5py.File(h5_file, 'r').attrs['extractor-checksum']) == checksum, \
-                f'{h5_file} has been extracted with a different model than the current one.  ' \
-                f'(current: {checksum:08x}, {h5_file.name}: {h5_checksum:08x})'
-            continue
+    #     if (h5_file := feat_dir/f'{slide.name}.h5').exists():
+    #         assert (h5_checksum := h5py.File(h5_file, 'r').attrs['extractor-checksum']) == checksum, \
+    #             f'{h5_file} has been extracted with a different model than the current one.  ' \
+    #             f'(current: {checksum:08x}, {h5_file.name}: {h5_checksum:08x})'
+    #         continue
 
         slide_df = pd.DataFrame(
             list(slide.glob('*.jpg')), columns=['path'])
@@ -111,7 +111,7 @@ def do_slides(slides: Iterable[Path], learn: Learner, feat_dir: Path):
         with h5py.File(outpath, 'w') as f:
             f['feats'] = preds[data.index]
             f['coords'] = coords
-            f.attrs['extractor-checksum'] = checksum
+            #f.attrs['extractor-checksum'] = checksum
 
 
 def model_checksum(m):
@@ -132,10 +132,10 @@ def batch(sequence: Sequence[T], n: int) -> Iterable[Sequence[T]]:
 
 
 def _get_coords(filename: PathLike) -> Optional[np.ndarray]:
-    if matches := re.match(r'.*\((\d+),(\d+)\)\.jpg', str(filename)):
+    if matches := re.match(r'.*\((-?\d+),(-?\d+)\)\.jpg', str(filename)):
         coords = tuple(map(int, matches.groups()))
         assert len(coords) == 2, 'Error extracting coordinates'
-        return np.array(coords)
+        return np.array(coords, dtype=int)
     else:
         return None
 
